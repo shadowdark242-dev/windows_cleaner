@@ -50,6 +50,8 @@ class Report:
 def analyze(root: str, cancel: Optional[threading.Event] = None, progress: Optional[Callable[[int, str], None]] = None,
             keep: int = 500, one_device: bool = True) -> Report:
     rep = Report(root)
+    if os.name == "nt":
+        one_device = False      # DirEntry.stat().st_dev на Windows всегда 0
     try:
         dev = os.stat(root).st_dev
     except OSError:

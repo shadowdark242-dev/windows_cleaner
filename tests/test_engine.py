@@ -2,7 +2,7 @@ import os
 import sqlite3
 import struct
 
-from conftest import write
+from conftest import linux_only, write
 from cleanix.catalog import for_platform, windows as wincat
 from cleanix.core import engine
 from cleanix.core.config import Config
@@ -43,6 +43,7 @@ def test_linux_trash_and_thumbnails(home):
     assert res[0].removed_count == 3 and not res[0].errors
 
 
+@linux_only
 def test_linux_tmp_respects_age_and_owner(home):
     tmp = home / "tmp"
     write(tmp / "old.log", age_hours=48)
@@ -343,6 +344,7 @@ def test_registry_fix_aborts_when_backup_fails(tmp_path):
     assert fixed == 0 and errs and reg.get_value(key, "Bad")
 
 
+@linux_only
 def test_linux_issues_and_fix(home):
     apps = home / ".local/share/applications"
     write(apps / "good.desktop", "[Desktop Entry]\nType=Application\nExec=/bin/sh -c x\n")
@@ -420,6 +422,7 @@ def test_trash_xdg(tmp_path, monkeypatch):
     assert "Path=" in (tmp_path / "data/Trash/info/gone.txt.trashinfo").read_text()
 
 
+@linux_only
 def test_linux_autostart_toggle_and_delete(home):
     ctx = lin_ctx(home)
     ctx.env["XDG_CONFIG_DIRS"] = str(home / "etc")

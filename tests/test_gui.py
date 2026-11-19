@@ -9,7 +9,7 @@ QtWidgets = pytest.importorskip("PySide6.QtWidgets")
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication
 
-from conftest import write
+from conftest import linux_only, write
 from cleanix.catalog import for_platform
 from cleanix.core.config import Config
 from cleanix.core.i18n import set_language
@@ -49,6 +49,7 @@ def make_window(app, home, monkeypatch, only=()):
     return w
 
 
+@linux_only
 def test_custom_clean_end_to_end(app, home, monkeypatch):
     write(home / ".cache/thumbnails/a.png", b"x" * 2048)
     write(home / ".local/share/Trash/files/old.txt", b"y" * 100)
@@ -72,6 +73,7 @@ def test_custom_clean_end_to_end(app, home, monkeypatch):
     w.close()
 
 
+@linux_only
 def test_run_cleaner_without_prior_analysis(app, home, monkeypatch):
     write(home / ".cache/thumbnails/a.png")
     w = make_window(app, home, monkeypatch, only=("lin.thumbs",))
@@ -83,6 +85,7 @@ def test_run_cleaner_without_prior_analysis(app, home, monkeypatch):
     w.close()
 
 
+@linux_only
 def test_easy_page(app, home, monkeypatch):
     write(home / ".cache/thumbnails/a.png", b"x" * 4096)
     w = make_window(app, home, monkeypatch)
@@ -109,6 +112,7 @@ def test_apps_tab_and_stop_button_state(app, home, monkeypatch):
     w.close()
 
 
+@linux_only
 def test_issues_page_scan_and_fix(app, home, monkeypatch):
     write(home / ".config/autostart/dead.desktop", "[Desktop Entry]\nExec=definitely-not-installed-xyz\n")
     w = make_window(app, home, monkeypatch)

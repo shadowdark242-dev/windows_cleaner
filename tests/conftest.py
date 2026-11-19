@@ -7,6 +7,9 @@ import pytest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
+linux_only = pytest.mark.skipif(sys.platform.startswith("win"), reason="Linux-specific scenario (fake HOME, /tmp, .desktop)")
+
+
 @pytest.fixture(autouse=True)
 def _isolated_config(tmp_path, monkeypatch):
     monkeypatch.setenv("CLEANIX_CONFIG_DIR", str(tmp_path / "cfg"))
