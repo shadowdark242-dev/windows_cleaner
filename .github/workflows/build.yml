@@ -1,10 +1,17 @@
 name: Build
 
-# Вручную (Actions → Build → Run workflow, когда файл в основной ветке) и при push в рабочую ветку.
+# Сборка и релиз:
+#  - вручную: Actions → Build → Run workflow (поле release_tag, например v0.1.0, создаёт релиз;
+#    пустое поле — только сборка и артефакты);
+#  - при пуше тега v*.
 on:
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Release tag to create (e.g. v0.1.0). Leave empty to only build."
+        required: false
+        default: ""
   push:
-    branches: [claude/intelligent-thompson-yin1sd]
     tags: ["v*"]
 
 jobs:
@@ -36,11 +43,13 @@ jobs:
 
   release:
     # Публикует релиз с бинарниками при пуше тега v* (например, v0.1.0)
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.release_tag != '')
     needs: build
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    env:
+      TAG: ${{ inputs.release_tag || github.ref_name }}
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -48,16 +57,19 @@ jobs:
       - name: Package
         run: |
           cd artifacts
-          (cd cleanix-Windows && zip -q ../Cleanix-${GITHUB_REF_NAME}-windows-x64.zip Cleanix.exe)
-          (cd cleanix-Linux && chmod +x cleanix && tar czf ../cleanix-${GITHUB_REF_NAME}-linux-x64.tar.gz cleanix)
+          (cd cleanix-Windows && zip -q ../Cleanix-${TAG}-windows-x64.zip Cleanix.exe)
+          (cd cleanix-Linux && chmod +x cleanix && tar czf ../cleanix-${TAG}-linux-x64.tar.gz cleanix)
       - uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ env.TAG }}
+          name: Cleanix ${{ env.TAG }}
+          target_commitish: ${{ github.sha }}
           files: |
             artifacts/*.zip
             artifacts/*.tar.gz
           generate_release_notes: false
           body: |
-            Cleanix ${{ github.ref_name }}: system cleaner for Windows 10/11 and Linux.
+            Cleanix ${{ env.TAG }}: system cleaner for Windows 10/11 and Linux.
 
-            - **Windows:** download `Cleanix-${{ github.ref_name }}-windows-x64.zip`, unzip and run `Cleanix.exe` (portable, settings are kept in the `data` folder next to it). The exe is not code-signed, so SmartScreen may warn about an unknown publisher.
-            - **Linux:** download `cleanix-${{ github.ref_name }}-linux-x64.tar.gz`, extract and run `./cleanix`.
+            - **Windows:** download `Cleanix-${{ env.TAG }}-windows-x64.zip`, unzip and run `Cleanix.exe` (portable, settings are kept in the `data` folder next to it). The exe is not code-signed, so SmartScreen may warn about an unknown publisher.
+            - **Linux:** download `cleanix-${{ env.TAG }}-linux-x64.tar.gz`, extract and run `./cleanix`.

@@ -66,7 +66,7 @@ pip install -r requirements-dev.txt
 python build.py                     # dist/Cleanix.exe on Windows, dist/cleanix on Linux
 ```
 
-The GitHub Actions workflow **Build** runs the tests and builds both binaries. Pushing a `v*` tag publishes them as a release.
+The GitHub Actions workflow **Build** runs the tests and builds both binaries. It is started manually (*Actions → Build → Run workflow*). Filling in *release_tag*, for example `v0.1.0`, or pushing a `v*` tag publishes the binaries as a release.
 
 ## Safety
 
