@@ -48,7 +48,7 @@ class MainWindow(QMainWindow):
         h = QHBoxLayout(bar)
         h.setContentsMargins(8, 2, 8, 0)
         logo = QLabel()
-        logo.setPixmap(icons.icon("broom", palette(self.theme)["accent_dark"], 22).pixmap(22, 22))
+        logo.setPixmap(icons.app_icon().pixmap(22, 22))
         brand = QLabel(APP_NAME)
         brand.setObjectName("brand")
         h.addWidget(logo)

@@ -134,7 +134,7 @@ class CustomPage(QWidget):
     def build_ribbon(self) -> Ribbon:
         r = Ribbon(self.win.theme)
         a = r.button("analyze", L("Analyze", "Анализ"), "search", self.analyze, tip=L("Find what can be removed", "Найти, что можно удалить"))
-        run = r.button("run", L("Run Cleaner", "Очистить"), "broom", self.run_clean, primary=True)
+        run = r.button("run", L("Run Cleaner", "Очистить"), "sparkle", self.run_clean, primary=True)
         stop = r.button("stop", L("Stop", "Стоп"), "stop", self.stop)
         rst = r.button("reset_an", L("Reset analysis", "Сбросить анализ"), "refresh", self.reset_analysis,
                        tip=L("Forget the results and start from scratch", "Забыть результаты и начать заново"))
@@ -424,7 +424,7 @@ class CustomPage(QWidget):
 
 # ======================================================================
 EASY_CATS = [
-    ("temp", T("Temporary files & caches", "Временные файлы и кэши"), T("Temp folders, thumbnails, trash", "Временные папки, эскизы, корзина"), "broom"),
+    ("temp", T("Temporary files & caches", "Временные файлы и кэши"), T("Temp folders, thumbnails, trash", "Временные папки, эскизы, корзина"), "trash"),
     ("browsers", T("Browser caches", "Кэш браузеров"), T("Chrome, Edge, Firefox, Brave, Opera…", "Chrome, Edge, Firefox, Brave, Opera…"), "apps"),
     ("traces", T("Activity traces", "Следы активности"), T("History, recent files, clipboard, sessions", "История, недавние файлы, буфер обмена, сессии"), "shield"),
     ("logs", T("Logs & crash dumps", "Журналы и дампы сбоев"), T("Log files, error reports, memory dumps", "Лог-файлы, отчёты об ошибках, дампы памяти"), "tasks"),
@@ -488,7 +488,7 @@ class EasyPage(QWidget):
         r = Ribbon(self.win.theme)
         r.add_group(L("Quick clean", "Быстрая очистка"), [
             r.button("analyze", L("Analyze", "Анализ"), "search", self.analyze),
-            r.button("clean", L("Clean", "Очистить"), "broom", self.clean, primary=True),
+            r.button("clean", L("Clean", "Очистить"), "sparkle", self.clean, primary=True),
             r.button("stop", L("Stop", "Стоп"), "stop", lambda: self.runner.stop()),
         ])
         self.rb = r.buttons

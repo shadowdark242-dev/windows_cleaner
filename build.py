@@ -10,6 +10,7 @@ NAME = "Cleanix" if sys.platform.startswith("win") else "cleanix"
 cmd = [
     sys.executable, "-m", "PyInstaller", "--noconfirm", "--clean", "--onefile", "--windowed",
     "--name", NAME,
+    "--icon", "assets/cleanix.ico",
     "--collect-submodules", "cleanix",
     "--exclude-module", "PySide6.QtWebEngineCore", "--exclude-module", "PySide6.QtQuick",
     "--exclude-module", "PySide6.Qt3DCore", "--exclude-module", "PySide6.QtMultimedia",

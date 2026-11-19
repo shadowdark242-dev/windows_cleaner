@@ -22,7 +22,7 @@ import re
 from ..core.i18n import T
 
 PRESETS = [
-    ("cleanix", T("Cleanix (emerald)", "Cleanix (изумрудный)"), "#0e9f6e"),
+    ("cleanix", T("Cleanix (emerald)", "Cleanix (изумрудный)"), "#0a855c"),
     ("coral", T("Coral (Airbnb)", "Коралловый (Airbnb)"), "#ff5a5f"),
     ("wise", T("Green (Wise)", "Зелёный (Wise)"), "#9fe870"),
     ("terracotta", T("Terracotta (Claude)", "Терракота (Claude)"), "#d97757"),
