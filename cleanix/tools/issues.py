@@ -20,11 +20,23 @@ class Issue:
     checked: bool = True
 
 
+RISK_SAFE, RISK_CAUTION, RISK_RISKY = "safe", "caution", "risky"
+
+
 @dataclass
 class Category:
     id: str
     name: Text
     scan: Callable[["IssueCtx"], List[Issue]]
+    risk: str = RISK_SAFE          # safe — рекомендуется; caution/risky — только осознанно
+
+    @property
+    def recommended(self) -> bool:
+        return self.risk == RISK_SAFE
+
+
+def recommended_ids(categories: List[Category]) -> set:
+    return {c.id for c in categories if c.recommended}
 
 
 class IssueCtx:

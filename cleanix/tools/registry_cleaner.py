@@ -7,7 +7,7 @@ from typing import List, Optional, Tuple
 
 from ..core import registry as R
 from ..core.i18n import T
-from .issues import Category, Issue, IssueCtx
+from .issues import RISK_CAUTION, RISK_RISKY, Category, Issue, IssueCtx
 
 HKLM, HKCU, HKCR = "HKEY_LOCAL_MACHINE", "HKEY_CURRENT_USER", "HKEY_CLASSES_ROOT"
 CV = r"SOFTWARE\Microsoft\Windows\CurrentVersion"
@@ -283,20 +283,20 @@ def scan_services(ctx: IssueCtx) -> List[Issue]:
 
 CATEGORIES: List[Category] = [
     Category("shared_dlls", T("Missing Shared DLLs", "Отсутствующие общие DLL"), scan_shared_dlls),
-    Category("extensions", T("Unused File Extensions", "Неиспользуемые расширения файлов"), scan_extensions),
-    Category("activex", T("ActiveX and Class Issues", "ActiveX и классы COM"), scan_activex),
-    Category("typelibs", T("Type Libraries", "Библиотеки типов"), scan_typelibs),
+    Category("extensions", T("Unused File Extensions", "Неиспользуемые расширения файлов"), scan_extensions, RISK_CAUTION),
+    Category("activex", T("ActiveX and Class Issues", "ActiveX и классы COM"), scan_activex, RISK_RISKY),
+    Category("typelibs", T("Type Libraries", "Библиотеки типов"), scan_typelibs, RISK_CAUTION),
     Category("applications", T("Applications", "Приложения"), scan_applications),
     Category("fonts", T("Fonts", "Шрифты"), scan_fonts),
     Category("app_paths", T("Application Paths", "Пути приложений"), scan_app_paths),
     Category("help", T("Help Files", "Файлы справки"), scan_help),
-    Category("installer", T("Installer", "Установщик"), scan_installer),
-    Category("obsolete", T("Obsolete Software", "Устаревшее ПО"), scan_obsolete),
+    Category("installer", T("Installer", "Установщик"), scan_installer, RISK_CAUTION),
+    Category("obsolete", T("Obsolete Software", "Устаревшее ПО"), scan_obsolete, RISK_CAUTION),
     Category("startup", T("Run At Startup", "Автозапуск"), scan_startup),
     Category("menu_order", T("Start Menu Ordering", "Порядок меню «Пуск»"), scan_menu_order),
     Category("mui", T("MUI Cache", "Кэш MUI"), scan_mui),
     Category("sounds", T("Sound Events", "Звуковые события"), scan_sounds),
-    Category("services", T("Windows Services", "Службы Windows"), scan_services),
+    Category("services", T("Windows Services", "Службы Windows"), scan_services, RISK_RISKY),
 ]
 
 

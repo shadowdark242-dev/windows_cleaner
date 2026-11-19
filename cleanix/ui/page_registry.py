@@ -5,16 +5,18 @@ import time
 from typing import List
 
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QBrush, QColor
 from PySide6.QtWidgets import QListWidget, QListWidgetItem, QSplitter, QVBoxLayout, QWidget
 
 from ..core.config import backup_dir
 from ..core.i18n import L
 from ..core.platform import NAME
 from ..tools import linux_issues, registry_cleaner
-from ..tools.issues import Issue, IssueCtx, scan_all
+from ..tools.issues import RISK_CAUTION, RISK_RISKY, Issue, IssueCtx, recommended_ids, scan_all
 from . import common
 from .common import ProgressRow, ask, cell, info, label, make_table
 from .ribbon import Ribbon
+from .theme import palette
 from .workers import TaskRunner
 
 
@@ -39,11 +41,19 @@ class IssuesPage(QWidget):
         ll.addWidget(label(L("Registry cleaner", "Чистильщик реестра") if self.windows
                            else L("System issues", "Системные проблемы"), "h2"))
         self.cats = QListWidget()
+        tags = {RISK_CAUTION: L("caution", "осторожно"), RISK_RISKY: L("risky", "риск")}
+        tips = {RISK_CAUTION: L("Can affect file associations or leave leftovers. Review the results before fixing.",
+                                "Может затронуть ассоциации файлов. Проверьте результаты перед исправлением."),
+                RISK_RISKY: L("Removing these entries can break working programs or services. Not recommended.",
+                              "Удаление этих записей может сломать работающие программы или службы. Не рекомендуется.")}
         for c in self.categories:
-            it = QListWidgetItem(str(c.name))
+            it = QListWidgetItem(str(c.name) + (f"   · {tags[c.risk]}" if c.risk in tags else ""))
             it.setFlags(it.flags() | Qt.ItemFlag.ItemIsUserCheckable)
-            it.setCheckState(Qt.CheckState.Checked)
+            it.setCheckState(Qt.CheckState.Checked if c.recommended else Qt.CheckState.Unchecked)
             it.setData(Qt.ItemDataRole.UserRole, c.id)
+            if c.risk in tips:
+                it.setToolTip(tips[c.risk])
+                it.setForeground(QBrush(QColor(palette(win.theme)["danger" if c.risk == RISK_RISKY else "warn"])))
             self.cats.addItem(it)
         ll.addWidget(self.cats)
         split.addWidget(left)
@@ -69,7 +79,13 @@ class IssuesPage(QWidget):
             r.button("fix", L("Fix selected", "Исправить"), "fix", self.fix, primary=True),
             r.button("stop", L("Stop", "Стоп"), "stop", self.runner.stop),
         ])
-        r.add_group(L("Selection", "Выбор"), [
+        r.add_group(L("Categories", "Категории"), [
+            r.button("rec", L("Recommended", "Рекомендуемые"), "shield", self._select_recommended,
+                     tip=L("Tick only the safe categories", "Отметить только безопасные категории")),
+            r.button("cat_all", L("All", "Все"), "checkall", lambda: self._set_cats(None)),
+            r.button("cat_none", L("None", "Ничего"), "uncheck", lambda: self._set_cats(set())),
+        ])
+        r.add_group(L("Results", "Результаты"), [
             r.button("all", L("Select all", "Выбрать всё"), "checkall", lambda: self._check_rows(True)),
             r.button("none", L("Select none", "Снять всё"), "uncheck", lambda: self._check_rows(False)),
         ])
@@ -80,6 +96,16 @@ class IssuesPage(QWidget):
         self.rb["fix"].setEnabled(False)
         self.rb["stop"].setEnabled(False)
         return r
+
+    def _set_cats(self, ids) -> None:
+        """ids=None — все категории; иначе только перечисленные."""
+        for i in range(self.cats.count()):
+            it = self.cats.item(i)
+            on = ids is None or it.data(Qt.ItemDataRole.UserRole) in ids
+            it.setCheckState(Qt.CheckState.Checked if on else Qt.CheckState.Unchecked)
+
+    def _select_recommended(self) -> None:
+        self._set_cats(recommended_ids(self.categories))
 
     def _check_rows(self, on: bool) -> None:
         for row in range(self.table.rowCount()):
@@ -116,9 +142,11 @@ class IssuesPage(QWidget):
     def _fill(self) -> None:
         self.table.setRowCount(0)
         names = {c.id: str(c.name) for c in self.categories}
+        safe = recommended_ids(self.categories)
         for n, i in enumerate(self.issues):
             self.table.insertRow(n)
-            self.table.setItem(n, 0, cell("", checkable=True, checked=i.checked, data=n))
+            # проблемы из «осторожных/рискованных» категорий по умолчанию не отмечаются
+            self.table.setItem(n, 0, cell("", checkable=True, checked=i.checked and i.category in safe, data=n))
             self.table.setItem(n, 1, cell(i.problem, tooltip=names.get(i.category, "")))
             self.table.setItem(n, 2, cell(i.data))
             self.table.setItem(n, 3, cell(i.location + (f"  [{i.value_name}]" if i.value_name else "")))
@@ -134,6 +162,10 @@ class IssuesPage(QWidget):
         if not todo:
             return
         stamp = time.strftime("%Y%m%d-%H%M%S")
+        risky = {c.id for c in self.categories if not c.recommended}
+        warn = L("\n\nWARNING: the selection includes non-recommended categories. Removing these entries can break programs.",
+                 "\n\nВНИМАНИЕ: выбраны нерекомендуемые категории. Удаление этих записей может сломать программы.") \
+            if any(i.category in risky for i in todo) else ""
         if self.windows:
             backup = str(backup_dir() / f"registry-{stamp}.reg")
             msg = L("A backup of the affected keys will be saved to:\n{p}\n\nFix {n} problems?",
@@ -142,7 +174,7 @@ class IssuesPage(QWidget):
             backup = str(backup_dir() / f"system-{stamp}")
             msg = L("Changed files will be copied to:\n{p}\n\nFix {n} problems?",
                     "Изменяемые файлы будут скопированы в:\n{p}\n\nИсправить проблем: {n}?").format(p=backup, n=len(todo))
-        if not ask(self, L("Fix selected", "Исправление"), msg, L("Fix", "Исправить")):
+        if not ask(self, L("Fix selected", "Исправление"), msg + warn, L("Fix", "Исправить")):
             return
         ctx = self.win.make_ctx()
         if self.windows:

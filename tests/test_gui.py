@@ -175,3 +175,27 @@ def test_russian_ui_builds_and_has_no_english_tab_titles(app, home, monkeypatch)
     assert titles[0] == "Очистка" and "Настройки" in titles
     w.close()
     set_language("en")
+
+
+@linux_only
+def test_issues_page_defaults_and_recommended_button(app, home, monkeypatch):
+    from cleanix.core.i18n import T
+    from cleanix.tools.issues import Category, Issue
+    w = make_window(app, home, monkeypatch)
+    page = w.page_by_key["issues"]
+    page.categories = [Category("a", T("A"), lambda c: [], "safe"), Category("b", T("B"), lambda c: [], "risky")]
+    page.cats.clear()
+    from PySide6.QtWidgets import QListWidgetItem
+    for c in page.categories:
+        it = QListWidgetItem(c.id)
+        it.setData(Qt.ItemDataRole.UserRole, c.id)
+        it.setCheckState(Qt.CheckState.Checked)
+        page.cats.addItem(it)
+    page._select_recommended()
+    assert page._selected_cats() == {"a"}
+    page._set_cats(None)
+    assert page._selected_cats() == {"a", "b"}
+    page.issues = [Issue("a", "p", "d", "l"), Issue("b", "p", "d", "l")]
+    page._fill()
+    assert [page.table.item(r, 0).checkState() == Qt.CheckState.Checked for r in range(2)] == [True, False]
+    w.close()

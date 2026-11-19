@@ -516,3 +516,14 @@ def test_config_falls_back_when_program_dir_readonly(tmp_path, monkeypatch):
     monkeypatch.setattr(C, "_writable", lambda p: False)
     monkeypatch.setattr(C, "_fallback_dir", lambda: tmp_path / "fallback")
     assert C.config_dir() == tmp_path / "fallback"
+
+
+def test_registry_category_risk_levels():
+    from cleanix.tools.issues import recommended_ids
+    cats = {c.id: c for c in RC.CATEGORIES}
+    assert cats["activex"].risk == "risky" and cats["services"].risk == "risky"
+    assert cats["extensions"].risk == "caution" and cats["obsolete"].risk == "caution"
+    rec = recommended_ids(RC.CATEGORIES)
+    assert {"startup", "shared_dlls", "app_paths", "mui", "fonts"} <= rec
+    assert not ({"activex", "services", "extensions", "typelibs", "obsolete", "installer"} & rec)
+    assert recommended_ids(LI.CATEGORIES) == {c.id for c in LI.CATEGORIES}
