@@ -139,6 +139,7 @@ QToolButton#ribbonBtn:checked {{ background: {c['selected']}; border-color: {c['
 QToolButton#ribbonBtn:disabled {{ color: {c['muted']}; }}
 QToolButton#ribbonBtn[primary="true"] {{ background: {c['accent']}; color: {c['accent_text']}; }}
 QToolButton#ribbonBtn[primary="true"]:hover {{ background: {c['accent_hover']}; }}
+QToolButton#ribbonBtn[primary="true"]:disabled {{ background: {c['border']}; color: {c['muted']}; }}
 
 /* ---- контент ---- */
 QFrame#card {{ background: {c['panel']}; border: 1px solid {c['border']}; border-radius: 10px; }}

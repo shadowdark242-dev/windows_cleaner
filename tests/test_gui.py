@@ -337,3 +337,13 @@ def test_registry_protected_rows_have_no_checkbox(app, home, monkeypatch):
     page._fill()
     assert not page.rb["fix"].isEnabled()
     w.close()
+
+
+def test_window_restores_maximized_state(app, home, monkeypatch):
+    from cleanix.ui.main_window import MainWindow
+    monkeypatch.setenv("HOME", str(home))
+    cfg = Config(language="en")
+    cfg.layout = {"maximized": True, "window": [1000, 700]}
+    w = MainWindow(cfg)          # раньше падало: NameError: Qt
+    assert w.windowState() & Qt.WindowState.WindowMaximized
+    w.close()

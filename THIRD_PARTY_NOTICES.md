@@ -28,3 +28,12 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
+
+## Qt for Python (PySide6) and Qt
+
+The application and the prebuilt binaries use [Qt for Python (PySide6)](https://doc.qt.io/qtforpython/) and the
+[Qt framework](https://www.qt.io/), © The Qt Company Ltd, used under the
+[GNU Lesser General Public License v3](https://www.gnu.org/licenses/lgpl-3.0.html).
+The source code of Qt and PySide6 is available at <https://download.qt.io/official_releases/QtForPython/>
+and <https://code.qt.io/>. You can replace these libraries with your own build by running Cleanix from source
+(`pip install PySide6-Essentials` and `python -m cleanix`).

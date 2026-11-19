@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from typing import Dict
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (QHBoxLayout, QLabel, QMainWindow, QStackedWidget, QTabBar, QVBoxLayout, QWidget)
 
 from .. import APP_NAME
@@ -11,7 +12,6 @@ from ..core.engine import Ctx
 from ..core.i18n import L
 from ..core.platform import NAME, is_admin
 from . import icons
-from .theme import palette
 from .page_clean import CustomPage, EasyPage
 from .page_registry import IssuesPage
 from .page_settings import SettingsPage

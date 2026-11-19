@@ -126,10 +126,21 @@ def _jumplists(ctx: Ctx):
     yield from ctx.files(ctx.env_path("APPDATA", *rec, "CustomDestinations"))
 
 
+def _current_sid() -> str:
+    try:
+        out = H.run_cmd(["whoami", "/user", "/fo", "csv", "/nh"], 10).stdout.strip()
+        return out.split(",")[-1].strip().strip('"')
+    except Exception:
+        return ""
+
+
 def _recycle_dirs(ctx: Ctx) -> List[Path]:
-    drive = ctx.env.get("SystemDrive", "C:")
-    out = [Path(drive + os.sep) / "$Recycle.Bin"]
-    return out
+    """Корзина текущего пользователя на системном диске (чужие корзины не считаем — их мы и не чистим)."""
+    base = Path(ctx.env.get("SystemDrive", "C:") + os.sep) / "$Recycle.Bin"
+    sid = _current_sid() if os.name == "nt" else ""
+    if sid and (base / sid).is_dir():
+        return [base / sid]
+    return [base]
 
 
 def _recycle(ctx: Ctx):

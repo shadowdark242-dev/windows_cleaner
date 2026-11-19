@@ -173,10 +173,18 @@ def list_programs(ctx: Ctx) -> List[Program]:
     return list_windows(ctx) if ctx.windows else list_linux(ctx)
 
 
+def msi_uninstall(cmd: str) -> str:
+    """MsiExec.exe /I{GUID} открывает мастер изменения — заменяем на /X{GUID} (удаление)."""
+    import re
+    if re.match(r'^\s*"?msiexec(\.exe)?"?\s', cmd, re.I):
+        return re.sub(r"(?i)(\s)/I(\s*\{)", r"\1/X\2", cmd, count=1)
+    return cmd
+
+
 def uninstall_command(p: Program) -> List[str] | str:
     """Команда удаления: строка (Windows, запускается через shell) или argv."""
     if p.kind == "reg":
-        return p.command
+        return msi_uninstall(p.command)
     if p.kind == "dpkg":
         return ["pkexec", "apt-get", "remove", "-y", p.ident]
     if p.kind == "rpm":

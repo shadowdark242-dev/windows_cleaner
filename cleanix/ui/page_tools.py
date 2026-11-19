@@ -509,6 +509,14 @@ class RestorePanel(Panel):
         self.lay.addWidget(self.table, 1)
         self.lay.addWidget(self.progress)
 
+    def activate(self) -> None:
+        if not self.loaded and restore.backend_name(self.win.make_ctx()) == "timeshift":
+            self.loaded = True        # timeshift --list требует root (pkexec) — не спрашиваем пароль без клика
+            self.msg.setText(L("Backend: Timeshift. Press “Refresh” to list snapshots (asks for the password).",
+                               "Средство: Timeshift. Нажмите «Обновить», чтобы показать снимки (спросит пароль)."))
+            return
+        super().activate()
+
     def refresh(self) -> None:
         ctx = self.win.make_ctx()
         b = restore.backend_name(ctx)

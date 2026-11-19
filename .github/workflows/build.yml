@@ -5,6 +5,7 @@ on:
   workflow_dispatch:
   push:
     branches: [claude/intelligent-thompson-yin1sd]
+    tags: ["v*"]
 
 jobs:
   build:
@@ -32,3 +33,31 @@ jobs:
         with:
           name: cleanix-${{ runner.os }}
           path: dist/*
+
+  release:
+    # Публикует релиз с бинарниками при пуше тега v* (например, v0.1.0)
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Package
+        run: |
+          cd artifacts
+          (cd cleanix-Windows && zip -q ../Cleanix-${GITHUB_REF_NAME}-windows-x64.zip Cleanix.exe)
+          (cd cleanix-Linux && chmod +x cleanix && tar czf ../cleanix-${GITHUB_REF_NAME}-linux-x64.tar.gz cleanix)
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/*.zip
+            artifacts/*.tar.gz
+          generate_release_notes: false
+          body: |
+            Cleanix ${{ github.ref_name }}: system cleaner for Windows 10/11 and Linux.
+
+            - **Windows:** download `Cleanix-${{ github.ref_name }}-windows-x64.zip`, unzip and run `Cleanix.exe` (portable, settings are kept in the `data` folder next to it). The exe is not code-signed, so SmartScreen may warn about an unknown publisher.
+            - **Linux:** download `cleanix-${{ github.ref_name }}-linux-x64.tar.gz`, extract and run `./cleanix`.

@@ -567,3 +567,9 @@ def test_icon_source_resolution(tmp_path):
     reg.add(u, {"DisplayName": "Real", "UninstallString": "x", "DisplayIcon": f"{exe},0"})
     ctx, _ = win_ctx(tmp_path, reg)
     assert UN.list_windows(ctx)[0].icon_path == str(exe)
+
+
+def test_msi_uninstall_uses_remove_switch():
+    assert UN.msi_uninstall("MsiExec.exe /I{ABC-123}") == "MsiExec.exe /X{ABC-123}"
+    assert UN.msi_uninstall('"C:\\\\app\\\\unins000.exe" /I') == '"C:\\\\app\\\\unins000.exe" /I'
+    assert UN.uninstall_command(UN.Program("x", kind="reg", command="msiexec /i {G}")) == "msiexec /X {G}"

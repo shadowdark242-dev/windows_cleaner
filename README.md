@@ -1,90 +1,105 @@
 # Cleanix
 
-Кроссплатформенный (Windows 10/11 + Linux) чистильщик системы по мотивам старого CCleaner:
-очистка мусора и следов активности, чистка реестра, автозагрузка, деинсталлятор, поиск дубликатов и т. д.
-Всё в одном окне — без разделения на «диск» и «реестр» как в Wise.
+Cleanix is a system cleaner for **Windows 10/11 and Linux**, inspired by the classic CCleaner layout.
+It removes junk files and privacy traces, fixes registry problems, and manages startup programs and installed software.
+It also finds duplicate files and analyzes disk usage, all in one window.
 
-Интерфейс: сверху вкладки (как в проводнике Windows), под ними лента с подменю текущей вкладки.
-Языки: русский и English (Настройки → Общие), светлая и тёмная темы.
+The interface has Explorer-style tabs on top with a ribbon of sub-commands under them.
+It is available in **English and Russian**, with light and dark themes and a selectable accent color.
 
-## Возможности
+![Custom Clean](docs/custom-clean.png)
 
-| Вкладка | Что внутри |
+| Registry cleaner | Quick clean |
 |---|---|
-| **Очистка** | Быстрая очистка в один клик: временные файлы и кэши, кэш браузеров, следы активности, журналы и дампы |
-| **Выбор опций** | Подробное дерево опций (как Custom Clean): *Windows/Система* и *Приложения*, «Анализ», «Очистить», отчёт в .txt |
-| **Реестр** (Windows) / **Системные проблемы** (Linux) | Windows: 15 категорий проверок реестра (общие DLL, расширения, ActiveX/COM, TypeLib, пути приложений, шрифты, установщик, устаревшее ПО, автозапуск, MUI, звуки, службы…) с `.reg`-бэкапом перед исправлением. Linux: битые ярлыки `.desktop`, автозапуск несуществующих программ, битые симлинки, устаревшие MIME-ассоциации, мёртвые записи «недавних файлов» (с копией изменяемых файлов) |
-| **Инструменты** | Удаление программ (реестр Windows / dpkg, rpm, pacman, flatpak, snap) · Автозагрузка / Планировщик / Контекстное меню (Win) / Службы · Расширения браузеров · Анализатор диска · Поиск дубликатов (размер → хэш; в корзину или навсегда) · Точки восстановления (Windows / Timeshift / Snapper) · Стирание свободного места и надёжное удаление файлов |
-| **Настройки** | Общие (язык, тема, показ путей файлов, способ удаления: обычное или перезапись 1/3/7/35 проходов), Cookies (какие оставить), Включения (свои папки/маски), Исключения, Расписание (Планировщик Windows / cron), Дополнительно, О программе |
+| ![Registry](docs/registry.png) | ![Quick clean](docs/quick-clean.png) |
 
-Опции очистки: Windows — IE/Edge Legacy, Проводник (MRU, эскизы, jump-листы), корзина, Temp, буфер обмена, дампы, журналы, WER, DNS, битые ярлыки, Prefetch, журналы событий, UserAssist и др.;
-Linux — корзина, `/tmp` (только ваши файлы старше N часов), эскизы, кэш шрифтов/шейдеров, отчёты о сбоях, буфер обмена, недавние документы, история shell, а с root — journald, кэш пакетов, `/var/log`, core-дампы;
-браузеры (Chrome, Chromium, Edge, Brave, Vivaldi, Opera, Firefox): кэш, история, cookies (с «белым списком»), сессия, формы, пароли; приложения: pip, npm, Yarn, Cargo, VS Code, Discord, Steam, Spotify, Telegram, Office.
+## Features
 
-## Запуск из исходников
+| Tab | What it does |
+|---|---|
+| **Clean** | One-click cleaning in four safe categories: temp files & caches, browser caches, activity traces, logs & crash dumps. |
+| **Options** | Full option tree (Windows/System and Applications), *Analyze*, *Run Cleaner*, *Reset analysis* and a text report. |
+| **Registry** (Windows) / **System issues** (Linux) | Windows: 15 registry checks, each marked *safe*, *caution* or *risky*. Only safe checks are selected by default, and a `.reg` backup is written before every fix. Entries owned by Windows (TrustedInstaller) are shown but never touched. Linux: broken launchers, orphan autostart entries, broken symlinks, stale MIME associations and dead "recent files" entries. Changed files are backed up first. |
+| **Tools** | Uninstall programs (Windows registry, dpkg/rpm/pacman, Flatpak, Snap) · Startup / Scheduled tasks / Context menu / Services · Browser extensions · Disk analyzer · Duplicate finder (size + hash, to Trash or permanently) · Restore points (Windows System Restore, Timeshift, Snapper) · Free-space wiper and secure file shredder |
+| **Settings** | Language, theme, accent color, deletion method (normal or 1/3/7/35-pass overwrite), file-path display, cookies to keep, extra folders to clean, exclusions, scheduling (Task Scheduler / cron) and advanced options. |
+
+**Cleaning coverage**
+
+- **Windows:** IE/Legacy Edge, Explorer MRUs, thumbnail cache, jump lists, Recycle Bin, Temp, clipboard, memory dumps, Windows logs, error reports, DNS cache, broken shortcuts, Prefetch, event logs and UserAssist.
+- **Linux:** Trash, your own `/tmp` files older than N hours, thumbnails, font and shader caches, crash reports, clipboard, recent documents and shell history. With root it also covers journald, the package cache, rotated `/var/log` files and core dumps.
+- **Browsers:** Chrome, Chromium, Edge, Brave, Vivaldi, Opera and Firefox. It cleans cache, history, cookies (with a keep-list), session, form data and passwords. Cleaning Firefox history keeps your bookmarks.
+- **Apps:** pip, npm, Yarn, Cargo, VS Code, Discord, Steam, Spotify, Telegram and Microsoft Office.
+
+## Download
+
+Ready-made builds for Windows (`Cleanix.exe`) and Linux are attached to the [Releases](../../releases) page.
+The `.exe` is not code-signed, so Windows SmartScreen may warn about an unknown publisher.
+
+Cleanix is **portable**. Settings and registry backups are stored in a `data` folder next to the executable.
+If that folder is not writable (for example, under `Program Files`), Cleanix uses the user profile instead.
+
+Some options need administrator rights: Prefetch, event logs, services and HKLM registry fixes.
+On Windows, use *Settings → Advanced → Restart as administrator*. On Linux, run it with `sudo -E`.
+
+## Run from source
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
-python -m cleanix                   # графический интерфейс
+python -m cleanix                   # GUI
 ```
 
-Консольный режим (его же использует планировщик):
+Command-line mode, which the scheduler also uses:
 
 ```bash
-python -m cleanix --list            # все опции и что отмечено
-python -m cleanix --analyze         # сколько можно освободить
-python -m cleanix --clean --dry-run # «сухой прогон», ничего не удаляет
-python -m cleanix --clean --silent  # очистить отмеченное в окне
+python -m cleanix --list            # all options and which are selected
+python -m cleanix --analyze         # how much can be freed
+python -m cleanix --clean --dry-run # simulate, delete nothing
+python -m cleanix --clean --silent  # clean the options selected in the GUI
 ```
 
-Опции, требующие прав администратора (Prefetch, журналы событий, journald, кэш пакетов…), помечены «админ».
-Windows: Настройки → Дополнительно → «Перезапустить от имени администратора».
-Linux: `sudo -E python -m cleanix`.
-
-## Сборка .exe / бинарника
+## Build
 
 ```bash
 pip install -r requirements-dev.txt
-python build.py                     # → dist/Cleanix.exe (Windows) или dist/cleanix (Linux)
+python build.py                     # dist/Cleanix.exe on Windows, dist/cleanix on Linux
 ```
 
-Также есть ручной workflow GitHub Actions **Build** (Actions → Build → Run workflow): прогоняет тесты и собирает
-артефакты для Windows и Linux. Автоматически он не запускается.
+The GitHub Actions workflow **Build** runs the tests and builds both binaries. Pushing a `v*` tag publishes them as a release.
 
-## Настройки и портативность
+## Safety
 
-Настройки, `.reg`-бэкапы и служебные файлы хранятся в папке `data` **рядом с программой** (рядом с `Cleanix.exe`). Программу можно носить на флешке. Если в папку нельзя писать (например, `Program Files`), используется папка профиля пользователя. Пути файлов в результатах анализа по умолчанию скрыты (Настройки → Общие).
+- Every option first only **finds** files (*Analyze*). Deletion happens after a confirmation, which you can turn off in Settings.
+- Exclusions protect files from every option. A drive root or your home folder cannot be added as an extra folder.
+- Temporary files newer than the age limit (24 h by default) are skipped.
+- Cookies and Firefox history are cleaned through SQLite without losing bookmarks. Close the browser first.
+- Registry fixes are preceded by a `.reg` backup in `data/backups`. If the backup fails, nothing is changed.
+- The drive wiper only overwrites **free space** and keeps a safety reserve. Wiping a whole physical disk is intentionally not supported.
 
-## Безопасность
-
-* Каждая опция сначала только **ищет** файлы («Анализ»); удаление — после подтверждения (отключается в настройках).
-* Список исключений защищает файлы от любой опции; корень диска и домашний каталог нельзя добавить во «Включения».
-* Временные файлы моложе заданного возраста (по умолчанию 24 ч) пропускаются.
-* Cookies/история Firefox чистятся через SQLite без потери закладок; браузер для этого должен быть закрыт.
-* Реестр: перед исправлением создаётся `.reg`-копия (`data/backups`), при ошибке копии ничего не меняется.
-* Стирание диска работает только со **свободным местом** (с запасом) — полное стирание физического диска намеренно не реализовано.
-
-## Тесты
+## Tests
 
 ```bash
 pip install -r requirements-dev.txt
 QT_QPA_PLATFORM=offscreen python -m pytest
 ```
 
-Логика очистки, реестра (через `FakeRegistry`), автозагрузки, дубликатов, расписания и GUI-сценарии проверяются на Linux
-с подменой `HOME`/реестра. **Реальные вызовы Windows API (winreg, SHEmptyRecycleBin, schtasks, PowerShell) в CI на Linux
-не выполняются** — перед релизом их нужно прогнать на настоящей Windows.
+On Linux, the tests cover cleaning logic, the registry cleaner (through an in-memory registry), startup management, duplicates, scheduling and GUI flows. They run against a fake `HOME` and registry.
+CI also runs them on Windows.
 
-## Структура
+## Project layout
 
 ```
 cleanix/
-  core/       конфиг, i18n, движок очистки, файловые помощники, абстракция реестра
-  catalog/    описание опций: windows.py, linux.py, browsers.py, apps.py, custom.py
-  tools/      реестр/системные проблемы, uninstall, startup, дубликаты, анализатор диска, wiper, restore, plugins, cookies
-  ui/         PySide6: тема, иконки, лента, страницы
+  core/       config, i18n, cleaning engine, file helpers, registry abstraction
+  catalog/    cleaning options: windows.py, linux.py, browsers.py, apps.py, custom.py
+  tools/      registry/system issues, uninstall, startup, duplicates, disk analyzer, wiper, restore, plugins, cookies
+  ui/         PySide6 UI: theme, icons, ribbon, pages
   scheduler.py, cli.py, __main__.py
 tests/
 ```
+
+## License
+
+Cleanix is not open-source software. All rights are reserved by the author.
+Third-party components keep their own licenses; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

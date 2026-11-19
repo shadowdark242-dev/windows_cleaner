@@ -1,7 +1,7 @@
 """Каталог опций очистки."""
 from __future__ import annotations
 
-from typing import Dict, List, Tuple
+from typing import List, Tuple
 
 from ..core.engine import CleanItem, Ctx, Group
 from . import apps, browsers, custom, linux, windows
