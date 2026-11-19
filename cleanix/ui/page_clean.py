@@ -14,7 +14,7 @@ from ..core.engine import CleanItem, ItemResult
 from ..core.i18n import L, T, human_size
 from ..core.platform import NAME
 from . import icons
-from .common import ProgressRow, ask, card, cell, info, label, make_table
+from .common import ProgressRow, ask, card, cell, info, label, make_table, remember_splitter
 from .ribbon import Ribbon
 from .theme import palette
 from .workers import TaskRunner
@@ -70,12 +70,20 @@ class CustomPage(QWidget):
         self.table = make_table([L("Option", "Опция"), L("Files", "Файлов"), L("Size", "Размер"), L("Status", "Статус")], 0)
         self.table.itemSelectionChanged.connect(self._show_details)
         self.table.itemChanged.connect(self._row_toggled)
-        rl.addWidget(self.table, 3)
         self.details = QListWidget()
         self.details.setAlternatingRowColors(True)
-        rl.addWidget(self.details, 2)
+        self.vsplit = QSplitter(Qt.Orientation.Vertical)      # высоту таблицы и списка файлов можно менять мышью
+        self.vsplit.setChildrenCollapsible(False)
+        self.vsplit.addWidget(self.table)
+        self.vsplit.addWidget(self.details)
+        self.vsplit.setStretchFactor(0, 3)
+        self.vsplit.setStretchFactor(1, 2)
+        self.vsplit.setHandleWidth(8)
+        remember_splitter(self.vsplit, win.cfg, "custom.v")
+        rl.addWidget(self.vsplit, 1)
         split.addWidget(right)
         split.setSizes([360, 640])
+        remember_splitter(split, win.cfg, "custom.h")
 
         self.progress = ProgressRow()
         outer.addWidget(self.progress)

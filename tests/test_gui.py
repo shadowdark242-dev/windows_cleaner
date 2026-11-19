@@ -254,3 +254,65 @@ def test_reset_analysis_and_clean_rows_one_by_one(app, home, monkeypatch):
     leaf.setCheckState(0, Qt.CheckState.Checked)
     assert page.table.rowCount() == 0
     w.close()
+
+
+def test_accent_presets_are_readable_in_both_themes():
+    from cleanix.ui import theme as TH
+    for pid, _name, _color in TH.PRESETS + [("custom", None, None)]:
+        TH.set_accent(pid, "#7c3aed")
+        for th in ("light", "dark"):
+            c = TH.palette(th)
+            assert TH.contrast(c["accent"], c["accent_text"]) >= 4.5, (pid, th, "text on fill")
+            assert TH.contrast(c["accent_dark"], c["panel"]) >= 4.5, (pid, th, "accent as foreground")
+            assert "background" in TH.stylesheet(th, "x.svg", "y.svg")
+    TH.set_accent("cleanix")
+
+
+def test_accent_setting_is_saved_and_applied(app, home, monkeypatch):
+    from cleanix.ui import theme as TH
+    TH.set_accent("cleanix")
+    w = make_window(app, home, monkeypatch)
+    reloaded = []
+    w._on_reload = lambda tab: reloaded.append(tab)
+    g = w.page_by_key["settings"].pages["general"]
+    g.accent.setCurrentIndex(g.accent.findData("coral"))
+    g._accent()
+    assert w.cfg.accent == "coral" and reloaded == ["settings"]
+    TH.set_accent("coral")
+    assert TH.palette("light")["accent"] == "#ff5a5f"
+    assert TH.palette("light")["accent_text"] in ("#ffffff", "#111111")
+    TH.set_accent("mono")
+    assert TH.palette("light")["accent"] == "#111111" and TH.palette("dark")["accent"] == "#f2f2f2"
+    TH.set_accent("cleanix")
+    w.close()
+
+
+def test_results_splitter_is_resizable(app, home, monkeypatch):
+    w = make_window(app, home, monkeypatch)
+    page = w.page_by_key["custom"]
+    sp = page.vsplit
+    assert sp.count() == 2 and sp.widget(0) is page.table and sp.widget(1) is page.details
+    sp.setSizes([100, 300])
+    assert sp.sizes()[1] > sp.sizes()[0]
+    w.close()
+
+
+def test_splitter_and_window_sizes_are_saved_and_restored(app, home, monkeypatch):
+    w = make_window(app, home, monkeypatch)
+    page = w.page_by_key["custom"]
+    w.resize(1000, 700)
+    page.vsplit.setSizes([111, 333])
+    page.vsplit.splitterMoved.emit(111, 1)
+    page.hsplit_ref = None
+    saved = dict(w.cfg.layout)
+    assert saved["custom.v"] == page.vsplit.sizes() and len(saved["custom.v"]) == 2
+    w.close()
+    assert saved.get("custom.v") and w.cfg.layout["window"] == [1000, 700]
+    # новое окно с теми же настройками получает те же размеры
+    from cleanix.ui.main_window import MainWindow
+    w2 = MainWindow(w.cfg)
+    w2.show()
+    p2 = w2.page_by_key["custom"]
+    assert p2.vsplit.sizes()[0] < p2.vsplit.sizes()[1]
+    assert (w2.width(), w2.height()) == (1000, 700)
+    w2.close()

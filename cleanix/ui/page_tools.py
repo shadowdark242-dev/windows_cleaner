@@ -264,6 +264,7 @@ class DiskPanel(Panel):
         split.addWidget(self.cats)
         split.addWidget(self.files)
         split.setSizes([380, 620])
+        common.remember_splitter(split, win.cfg, "disk.h")
         self.lay.addWidget(split, 1)
         self.lay.addLayout(self.toolbar(None, button(L("Show in folder", "Показать в папке"), self._reveal)))
         self.lay.addWidget(self.progress)

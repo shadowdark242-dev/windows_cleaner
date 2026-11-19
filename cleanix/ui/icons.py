@@ -72,4 +72,5 @@ def icon(name: str, color: str = "#1d2b27", size: int = 32) -> QIcon:
 
 
 def app_icon() -> QIcon:
-    return icon("broom", "#0e9f6e", 64)
+    from .theme import palette
+    return icon("broom", palette("light")["accent"], 64)

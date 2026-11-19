@@ -6,7 +6,8 @@ from typing import Dict
 
 from PySide6 import __version__ as pyside_version
 from PySide6.QtCore import Qt, QTime
-from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFileDialog, QFormLayout, QHBoxLayout,
+from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap
+from PySide6.QtWidgets import (QCheckBox, QColorDialog, QComboBox, QDialog, QDialogButtonBox, QFileDialog, QFormLayout, QHBoxLayout,
                                QLabel, QLineEdit, QListWidget, QSpinBox, QStackedWidget, QTimeEdit, QVBoxLayout,
                                QWidget)
 
@@ -18,6 +19,7 @@ from ..tools import cookies
 from . import common
 from .common import ask, button, cell, choose_dir, info, label, make_table
 from .ribbon import Ribbon
+from . import theme as theme_mod
 from .workers import TaskRunner
 
 
@@ -52,6 +54,13 @@ class GeneralPage(SubPage):
         self.theme.setCurrentIndex(max(0, self.theme.findData(cfg.theme)))
         self.theme.currentIndexChanged.connect(self._theme)
         form.addRow(L("Theme", "Тема"), self.theme)
+        self.accent = QComboBox()
+        for pid, name, color in theme_mod.PRESETS:
+            self.accent.addItem(self._swatch(color), str(name), pid)
+        self.accent.addItem(self._swatch(cfg.accent_custom), L("Custom color…", "Свой цвет…"), "custom")
+        self.accent.setCurrentIndex(max(0, self.accent.findData(cfg.accent)))
+        self.accent.activated.connect(self._accent)
+        form.addRow(L("Accent color (icons and controls)", "Цвет акцента (иконки и элементы управления)"), self.accent)
         self.secure = QComboBox()
         self.secure.addItem(L("Normal file deletion (faster)", "Обычное удаление (быстрее)"), 0)
         for n, name in ((1, L("Secure: 1 pass", "Надёжное: 1 проход")), (3, L("Secure: 3 passes", "Надёжное: 3 прохода")),
@@ -77,6 +86,31 @@ class GeneralPage(SubPage):
 
     def _lang(self) -> None:
         self.win.cfg.language = self.lang.currentData()
+        self.save()
+        self.win.reload_ui("settings")
+
+    @staticmethod
+    def _swatch(color: str) -> QIcon:
+        pm = QPixmap(16, 16)
+        pm.fill(Qt.GlobalColor.transparent)
+        p = QPainter(pm)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.setBrush(QColor(color))
+        p.setPen(QColor("#8888"))
+        p.drawRoundedRect(1, 1, 14, 14, 4, 4)
+        p.end()
+        return QIcon(pm)
+
+    def _accent(self, _idx: int = 0) -> None:
+        pid = self.accent.currentData()
+        if pid == "custom":
+            start = QColor(self.win.cfg.accent_custom if theme_mod.valid_hex(self.win.cfg.accent_custom) else "#7c3aed")
+            col = QColorDialog.getColor(start, self, L("Accent color", "Цвет акцента"))
+            if not col.isValid():
+                self.accent.setCurrentIndex(max(0, self.accent.findData(self.win.cfg.accent)))
+                return
+            self.win.cfg.accent_custom = col.name()
+        self.win.cfg.accent = pid
         self.save()
         self.win.reload_ui("settings")
 

@@ -13,8 +13,101 @@ DARK = dict(
 )
 
 
+# ----------------------------------------------------------------------
+# Акцентный цвет
+# ----------------------------------------------------------------------
+import colorsys
+import re
+
+from ..core.i18n import T
+
+PRESETS = [
+    ("cleanix", T("Cleanix (emerald)", "Cleanix (изумрудный)"), "#0e9f6e"),
+    ("coral", T("Coral (Airbnb)", "Коралловый (Airbnb)"), "#ff5a5f"),
+    ("wise", T("Green (Wise)", "Зелёный (Wise)"), "#9fe870"),
+    ("terracotta", T("Terracotta (Claude)", "Терракота (Claude)"), "#d97757"),
+    ("violet", T("Violet (Linear, Stripe)", "Фиолетовый (Linear, Stripe)"), "#635bff"),
+    ("blue", T("Blue (Coinbase)", "Синий (Coinbase)"), "#0052ff"),
+    ("yellow", T("Yellow (Binance)", "Жёлтый (Binance)"), "#f0b90b"),
+    ("teal", T("Teal", "Бирюзовый"), "#14b8a6"),
+    ("mono", T("Black & white (Uber)", "Чёрно-белый (Uber)"), "#000000"),
+]
+DEFAULT_ACCENT = "cleanix"
+_accent = [DEFAULT_ACCENT, "#7c3aed"]       # [id пресета или "custom", свой цвет]
+
+
+def valid_hex(s: str) -> bool:
+    return bool(re.fullmatch(r"#[0-9a-fA-F]{6}", s or ""))
+
+
+def set_accent(preset_id: str, custom: str = "") -> None:
+    ids = {p[0] for p in PRESETS}
+    _accent[0] = preset_id if preset_id in ids or preset_id == "custom" else DEFAULT_ACCENT
+    if valid_hex(custom):
+        _accent[1] = custom.lower()
+
+
+def _rgb(h: str):
+    h = h.lstrip("#")
+    return tuple(int(h[i:i + 2], 16) / 255 for i in (0, 2, 4))
+
+
+def _hex(rgb) -> str:
+    return "#" + "".join(f"{max(0, min(255, round(v * 255))):02x}" for v in rgb)
+
+
+def _lum(h: str) -> float:
+    def f(v):
+        return v / 12.92 if v <= 0.03928 else ((v + 0.055) / 1.055) ** 2.4
+    r, g, b = (f(v) for v in _rgb(h))
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+
+def contrast(a: str, b: str) -> float:
+    la, lb = sorted((_lum(a), _lum(b)), reverse=True)
+    return (la + 0.05) / (lb + 0.05)
+
+
+def mix(a: str, b: str, t: float) -> str:
+    """t=0 → a, t=1 → b."""
+    return _hex(tuple(x * (1 - t) + y * t for x, y in zip(_rgb(a), _rgb(b))))
+
+
+def _shift_lightness(h: str, delta: float) -> str:
+    r, g, b = _rgb(h)
+    hh, ll, ss = colorsys.rgb_to_hls(r, g, b)
+    return _hex(colorsys.hls_to_rgb(hh, max(0.0, min(1.0, ll + delta)), ss))
+
+
+def derive_accent(base: str, theme: str) -> dict:
+    """Все производные цвета акцента с гарантией читаемости (контраст ≥ 4.5 для текста на заливке, ≥ 4.5 для текста на панели)."""
+    panel = (DARK if theme == "dark" else LIGHT)["panel"]
+    fill = base
+    if _accent[0] == "mono":
+        fill = "#f2f2f2" if theme == "dark" else "#111111"
+    text = "#ffffff" if contrast(fill, "#ffffff") >= contrast(fill, "#111111") else "#111111"
+    fg = fill                                            # цвет текста/иконок на светлой/тёмной панели
+    step = -0.03 if theme != "dark" else 0.03
+    for _ in range(40):
+        if contrast(fg, panel) >= 4.5:
+            break
+        fg = _shift_lightness(fg, step)
+    hover = _shift_lightness(fill, -0.07 if _lum(fill) > 0.1 else 0.12)
+    sel_t, hov_t = (0.28, 0.14) if theme == "dark" else (0.22, 0.10)
+    return dict(accent=fill, accent_text=text, accent_dark=fg, accent_hover=hover,
+                selected=mix(panel, fill, sel_t), hover=mix(panel, fill, hov_t))
+
+
+def current_base() -> str:
+    if _accent[0] == "custom":
+        return _accent[1]
+    return next(p[2] for p in PRESETS if p[0] == _accent[0])
+
+
 def palette(name: str) -> dict:
-    return DARK if name == "dark" else LIGHT
+    base = dict(DARK if name == "dark" else LIGHT)
+    base.update(derive_accent(current_base(), "dark" if name == "dark" else "light"))
+    return base
 
 
 def stylesheet(name: str, check: str = "", chevron: str = "") -> str:
@@ -45,7 +138,7 @@ QToolButton#ribbonBtn:hover {{ background: {c['hover']}; border-color: {c['borde
 QToolButton#ribbonBtn:checked {{ background: {c['selected']}; border-color: {c['accent']}; }}
 QToolButton#ribbonBtn:disabled {{ color: {c['muted']}; }}
 QToolButton#ribbonBtn[primary="true"] {{ background: {c['accent']}; color: {c['accent_text']}; }}
-QToolButton#ribbonBtn[primary="true"]:hover {{ background: {c['accent_dark']}; }}
+QToolButton#ribbonBtn[primary="true"]:hover {{ background: {c['accent_hover']}; }}
 
 /* ---- контент ---- */
 QFrame#card {{ background: {c['panel']}; border: 1px solid {c['border']}; border-radius: 10px; }}
@@ -57,7 +150,8 @@ QPushButton {{ background: {c['panel']}; border: 1px solid {c['border']}; border
 QPushButton:hover {{ background: {c['hover']}; border-color: {c['accent']}; }}
 QPushButton:disabled {{ color: {c['muted']}; }}
 QPushButton#primary {{ background: {c['accent']}; color: {c['accent_text']}; border-color: {c['accent']}; font-weight: 600; }}
-QPushButton#primary:hover {{ background: {c['accent_dark']}; }}
+QPushButton#primary:disabled {{ background: {c['border']}; color: {c['muted']}; border-color: {c['border']}; }}
+QPushButton#primary:hover {{ background: {c['accent_hover']}; }}
 QPushButton#danger {{ color: {c['danger']}; }}
 QLineEdit, QComboBox, QSpinBox, QTimeEdit, QPlainTextEdit, QTextEdit {{ background: {c['panel']}; border: 1px solid {c['border']};
     border-radius: 6px; padding: 5px 8px; selection-background-color: {c['accent']}; selection-color: {c['accent_text']}; }}
@@ -93,6 +187,7 @@ QTabBar#subtabs::tab {{ padding: 6px 16px; border: none; border-bottom: 2px soli
 QTabBar#subtabs::tab:selected {{ color: {c['accent_dark']}; border-bottom-color: {c['accent']}; font-weight: 600; }}
 QTabBar#subtabs::tab:hover {{ color: {c['text']}; }}
 QSplitter::handle {{ background: transparent; }}
+QSplitter::handle:hover {{ background: {c['border']}; }}
 QGroupBox {{ border: 1px solid {c['border']}; border-radius: 8px; margin-top: 12px; padding: 12px 10px 8px 10px; }}
 QGroupBox::title {{ subcontrol-origin: margin; left: 12px; padding: 0 6px; color: {c['muted']}; }}
 QMenu {{ background: {c['panel']}; border: 1px solid {c['border']}; padding: 4px; }}

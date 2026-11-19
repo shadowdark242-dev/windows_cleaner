@@ -67,6 +67,8 @@ def backup_dir() -> Path:
 class Config:
     language: str = "auto"            # auto | ru | en
     theme: str = "light"              # light | dark
+    accent: str = "cleanix"           # id пресета или "custom"
+    accent_custom: str = "#7c3aed"    # свой цвет акцента (#rrggbb)
     secure_passes: int = 0            # 0 — обычное удаление, 1/3/7/35 — перезапись
     min_age_hours: int = 24           # не трогать временные файлы моложе N часов
     confirm_clean: bool = True
@@ -78,6 +80,7 @@ class Config:
     schedule: Dict[str, Any] = field(default_factory=lambda: {"enabled": False, "freq": "daily", "time": "09:00"})
     dup_folders: List[str] = field(default_factory=list)
     last_tab: str = "easy"
+    layout: Dict[str, Any] = field(default_factory=dict)   # размеры разделителей и окна
 
     # ------------------------------------------------------------------
     @classmethod

@@ -79,6 +79,20 @@ class CopyTable(QTableWidget):
             self.copy_rows()
 
 
+def remember_splitter(sp, cfg, key: str) -> None:
+    """Восстанавливает размеры секций разделителя и сохраняет их при перетаскивании."""
+    saved = cfg.layout.get(key)
+    if (isinstance(saved, list) and len(saved) == sp.count() and all(isinstance(x, int) and x >= 0 for x in saved)
+            and sum(saved) > 0):
+        sp.setSizes(saved)
+
+    def store(*_):
+        cfg.layout[key] = [int(x) for x in sp.sizes()]
+        cfg.save()
+
+    sp.splitterMoved.connect(store)
+
+
 def make_table(headers: List[str], stretch_col: int = 0, checkable: bool = False) -> QTableWidget:
     t = CopyTable(0, len(headers))
     t.setHorizontalHeaderLabels(headers)

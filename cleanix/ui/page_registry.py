@@ -70,6 +70,7 @@ class IssuesPage(QWidget):
         rl.addWidget(self.table, 1)
         split.addWidget(right)
         split.setSizes([280, 720])
+        common.remember_splitter(split, win.cfg, "issues.h")
         self.progress = ProgressRow()
         outer.addWidget(self.progress)
 

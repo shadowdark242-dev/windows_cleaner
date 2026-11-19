@@ -11,6 +11,7 @@ from ..core.engine import Ctx
 from ..core.i18n import L
 from ..core.platform import NAME, is_admin
 from . import icons
+from .theme import palette
 from .page_clean import CustomPage, EasyPage
 from .page_registry import IssuesPage
 from .page_settings import SettingsPage
@@ -25,7 +26,13 @@ class MainWindow(QMainWindow):
         self._on_reload = on_reload
         self.setWindowTitle(APP_NAME + (" — " + L("Administrator", "Администратор") if is_admin() else ""))
         self.setWindowIcon(icons.app_icon())
-        self.resize(1100, 720)
+        size = cfg.layout.get("window")
+        if isinstance(size, list) and len(size) == 2 and all(isinstance(x, int) and 600 <= x <= 10000 for x in size):
+            self.resize(size[0], size[1])
+        else:
+            self.resize(1100, 720)
+        if cfg.layout.get("maximized"):
+            self.setWindowState(self.windowState() | Qt.WindowState.WindowMaximized)
         self.setMinimumSize(900, 600)
 
         root = QWidget()
@@ -41,7 +48,7 @@ class MainWindow(QMainWindow):
         h = QHBoxLayout(bar)
         h.setContentsMargins(8, 2, 8, 0)
         logo = QLabel()
-        logo.setPixmap(icons.icon("broom", "#0e9f6e", 22).pixmap(22, 22))
+        logo.setPixmap(icons.icon("broom", palette(self.theme)["accent_dark"], 22).pixmap(22, 22))
         brand = QLabel(APP_NAME)
         brand.setObjectName("brand")
         h.addWidget(logo)
@@ -121,5 +128,8 @@ class MainWindow(QMainWindow):
                 if r is not None and r.busy:
                     r.stop()
                     r.wait(3000)
+        if not self.isMaximized():
+            self.cfg.layout["window"] = [self.width(), self.height()]
+        self.cfg.layout["maximized"] = self.isMaximized()
         self.cfg.save()
         super().closeEvent(e)
