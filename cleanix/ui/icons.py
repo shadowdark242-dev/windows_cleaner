@@ -6,7 +6,6 @@ from PySide6.QtGui import QColor, QIcon, QImage, QPainter, QPixmap
 from PySide6.QtSvg import QSvgRenderer
 
 _P = {
-    "sparkle": '<path d="M10 3C10.7 8.5 12.5 10.3 18 11C12.5 11.7 10.7 13.5 10 19C9.3 13.5 7.5 11.7 2 11C7.5 10.3 9.3 8.5 10 3Z"/><path d="M19 14C19.2 16 20 16.8 22 17C20 17.2 19.2 18 19 20C18.8 18 18 17.2 16 17C18 16.8 18.8 16 19 14Z"/>',
     "search": '<circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21"/>',
     "play": '<path d="M7 4.5v15l12-7.5z"/>',
     "stop": '<rect x="6" y="6" width="12" height="12" rx="1.5"/>',
@@ -55,30 +54,21 @@ def svg(name: str, color: str = "#1d2b27", size: int = 24) -> bytes:
             f'stroke="{color}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">{body}</svg>').encode()
 
 
-_mask_cache: list = []
-
-
-def broom_mask() -> QImage:
-    """Маска метлы (белый + альфа) из встроенного PNG."""
-    if not _mask_cache:
-        import base64
-        from .broom_data import BROOM_PNG_B64
-        img = QImage.fromData(base64.b64decode(BROOM_PNG_B64), "PNG")
-        _mask_cache.append(img.convertToFormat(QImage.Format.Format_ARGB32_Premultiplied))
-    return _mask_cache[0]
+# Иконка метлы — Phosphor Icons ("broom", fill), лицензия MIT, см. THIRD_PARTY_NOTICES.md
+_BROOM_PATH = (
+    "M235.29,216.7C212.86,205.69,200,182.12,200,152V134.69a15.94,15.94,0,0,0-10.09-14.87l-28.65-11.46A8,8,0,0,1,156.79,98l22.32-56.67C184,28.79,178,14.21,165.34,9.51a24,24,0,0,0-30.7,13.71L112.25,80.08a8,8,0,0,1-10.41,4.5L73.11,73.08a15.91,15.91,0,0,0-17.38,3.66C34.68,98.4,24,123.71,24,152a111.53,111.53,0,0,0,31.15,77.53A8.06,8.06,0,0,0,61,232H232a8,8,0,0,0,8-7.51A8.21,8.21,0,0,0,235.29,216.7ZM115.11,216a87.52,87.52,0,0,1-24.26-41.71,8.21,8.21,0,0,0-9.25-6.18A8,8,0,0,0,75.28,178a105.33,105.33,0,0,0,18.36,38H64.44A95.62,95.62,0,0,1,40,152a85.92,85.92,0,0,1,7.73-36.3l137.8,55.13c3,18.06,10.55,33.5,21.89,45.19Z")
 
 
 def broom_pixmap(color: str, size: int) -> QPixmap:
     """Метла нужного цвета и размера (прозрачный фон)."""
-    scaled = broom_mask().scaled(size, size, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
-    out = QImage(size, size, QImage.Format.Format_ARGB32_Premultiplied)
-    out.fill(Qt.GlobalColor.transparent)
-    p = QPainter(out)
-    p.drawImage((size - scaled.width()) // 2, (size - scaled.height()) // 2, scaled)
-    p.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceIn)
-    p.fillRect(out.rect(), QColor(color))
+    svg = (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="{size}" height="{size}">'
+           f'<path fill="{color}" d="{_BROOM_PATH}"/></svg>')
+    img = QImage(size, size, QImage.Format.Format_ARGB32_Premultiplied)
+    img.fill(Qt.GlobalColor.transparent)
+    p = QPainter(img)
+    QSvgRenderer(QByteArray(svg.encode())).render(p, QRectF(0, 0, size, size))
     p.end()
-    return QPixmap.fromImage(out)
+    return QPixmap.fromImage(img)
 
 
 def icon(name: str, color: str = "#1d2b27", size: int = 32) -> QIcon:
@@ -111,7 +101,7 @@ def app_icon_pixmap(bg: str, fg: str = "#ffffff", size: int = 256) -> QPixmap:
     p.setPen(Qt.PenStyle.NoPen)
     p.setBrush(QColor(bg))
     p.drawRoundedRect(QRectF(0, 0, size, size), size * 0.25, size * 0.25)
-    inner = int(size * 0.66)
+    inner = int(size * 0.62)
     off = (size - inner) // 2
     p.drawPixmap(off, off, broom_pixmap(fg, inner))
     p.end()
