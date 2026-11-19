@@ -3,7 +3,7 @@
 ## Phosphor Icons — "broom" (fill)
 
 The broom glyph used for the cleaning buttons, the logo and the application/.exe icon
-comes from [Phosphor Icons](https://github.com/phosphor-icons/core) and is used under the MIT License.
+(without the sparkles, which are original artwork) comes from [Phosphor Icons](https://github.com/phosphor-icons/core) and is used under the MIT License.
 
 ```
 MIT License

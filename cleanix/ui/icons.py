@@ -59,10 +59,23 @@ _BROOM_PATH = (
     "M235.29,216.7C212.86,205.69,200,182.12,200,152V134.69a15.94,15.94,0,0,0-10.09-14.87l-28.65-11.46A8,8,0,0,1,156.79,98l22.32-56.67C184,28.79,178,14.21,165.34,9.51a24,24,0,0,0-30.7,13.71L112.25,80.08a8,8,0,0,1-10.41,4.5L73.11,73.08a15.91,15.91,0,0,0-17.38,3.66C34.68,98.4,24,123.71,24,152a111.53,111.53,0,0,0,31.15,77.53A8.06,8.06,0,0,0,61,232H232a8,8,0,0,0,8-7.51A8.21,8.21,0,0,0,235.29,216.7ZM115.11,216a87.52,87.52,0,0,1-24.26-41.71,8.21,8.21,0,0,0-9.25-6.18A8,8,0,0,0,75.28,178a105.33,105.33,0,0,0,18.36,38H64.44A95.62,95.62,0,0,1,40,152a85.92,85.92,0,0,1,7.73-36.3l137.8,55.13c3,18.06,10.55,33.5,21.89,45.19Z")
 
 
+def _star(cx: float, cy: float, r: float) -> str:
+    """Четырёхконечная искра с вогнутыми сторонами (собственный рисунок)."""
+    k1, k2 = 0.14 * r, 0.45 * r
+    return (f"M{cx} {cy - r}C{cx + k1} {cy - k2} {cx + k2} {cy - k1} {cx + r} {cy}"
+            f"C{cx + k2} {cy + k1} {cx + k1} {cy + k2} {cx} {cy + r}"
+            f"C{cx - k1} {cy + k2} {cx - k2} {cy + k1} {cx - r} {cy}"
+            f"C{cx - k2} {cy - k1} {cx - k1} {cy - k2} {cx} {cy - r}Z")
+
+
+_SPARKLES = _star(62, 64, 44) + _star(122, 30, 20) + _star(26, 134, 18)
+
+
 def broom_pixmap(color: str, size: int) -> QPixmap:
-    """Метла нужного цвета и размера (прозрачный фон)."""
+    """Метла с искрами нужного цвета и размера (прозрачный фон)."""
     svg = (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="{size}" height="{size}">'
-           f'<path fill="{color}" d="{_BROOM_PATH}"/></svg>')
+           f'<g fill="{color}"><path transform="translate(70 66) scale(0.76)" d="{_BROOM_PATH}"/>'
+           f'<path d="{_SPARKLES}"/></g></svg>')
     img = QImage(size, size, QImage.Format.Format_ARGB32_Premultiplied)
     img.fill(Qt.GlobalColor.transparent)
     p = QPainter(img)
@@ -101,7 +114,7 @@ def app_icon_pixmap(bg: str, fg: str = "#ffffff", size: int = 256) -> QPixmap:
     p.setPen(Qt.PenStyle.NoPen)
     p.setBrush(QColor(bg))
     p.drawRoundedRect(QRectF(0, 0, size, size), size * 0.25, size * 0.25)
-    inner = int(size * 0.62)
+    inner = int(size * 0.76)
     off = (size - inner) // 2
     p.drawPixmap(off, off, broom_pixmap(fg, inner))
     p.end()
