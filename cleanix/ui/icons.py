@@ -2,19 +2,10 @@
 from __future__ import annotations
 
 from PySide6.QtCore import QByteArray, QRectF, Qt
-from PySide6.QtGui import QIcon, QImage, QPainter, QPixmap
+from PySide6.QtGui import QColor, QIcon, QImage, QPainter, QPixmap
 from PySide6.QtSvg import QSvgRenderer
 
-_BROOM = (
-    '<path d="M21.1 .5c.8-.3 1.8 0 2.2.8.3.6.2 1.2-.1 1.8L19.6 9.3 16.9 8.1z"/>'
-    '<path d="M13.1 10.3c.9-1.9 2.9-2.7 4.7-1.9l3.9 1.7c1.6.7 2.2 2.1 1.7 3.8l-.2.6z"/>'
-    '<path d="M13.3 11.9 23 15.9c-.7 2.8-2.3 5.4-4.3 7.4-.4.4-1 .5-1.5.4-.7-.1-1.2-.1-1.9-.3l1.8-4.2-3.4 3.6c-1 .1-2-.1-3-.3L10.1 19 6.4 21.3C4.7 20.8 3.2 19.9 2 18.7c-.7-.7-.5-1.7.2-2.1 4.7-.4 8.4-1.5 11.1-4.7z"/>'
-    '<circle cx="2.6" cy="4.6" r="2.2"/><circle cx="7.4" cy="5.6" r="1.5"/><circle cx="6.1" cy="11.3" r="2.5"/>')
-
-_FILL = {"broom"}        # иконки-силуэты: заливка вместо контура
-
 _P = {
-    "broom": _BROOM,
     "sparkle": '<path d="M10 3C10.7 8.5 12.5 10.3 18 11C12.5 11.7 10.7 13.5 10 19C9.3 13.5 7.5 11.7 2 11C7.5 10.3 9.3 8.5 10 3Z"/><path d="M19 14C19.2 16 20 16.8 22 17C20 17.2 19.2 18 19 20C18.8 18 18 17.2 16 17C18 16.8 18.8 16 19 14Z"/>',
     "search": '<circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21"/>',
     "play": '<path d="M7 4.5v15l12-7.5z"/>',
@@ -60,15 +51,44 @@ _P = {
 
 def svg(name: str, color: str = "#1d2b27", size: int = 24) -> bytes:
     body = _P.get(name, _P["info"])
-    if name in _FILL:
-        return (f'<svg xmlns="http://www.w3.org/2000/svg" width="{size}" height="{size}" viewBox="0 0 24 24" '
-                f'fill="{color}">{body}</svg>').encode()
     return (f'<svg xmlns="http://www.w3.org/2000/svg" width="{size}" height="{size}" viewBox="0 0 24 24" fill="none" '
             f'stroke="{color}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">{body}</svg>').encode()
 
 
+_mask_cache: list = []
+
+
+def broom_mask() -> QImage:
+    """Маска метлы (белый + альфа) из встроенного PNG."""
+    if not _mask_cache:
+        import base64
+        from .broom_data import BROOM_PNG_B64
+        img = QImage.fromData(base64.b64decode(BROOM_PNG_B64), "PNG")
+        _mask_cache.append(img.convertToFormat(QImage.Format.Format_ARGB32_Premultiplied))
+    return _mask_cache[0]
+
+
+def broom_pixmap(color: str, size: int) -> QPixmap:
+    """Метла нужного цвета и размера (прозрачный фон)."""
+    scaled = broom_mask().scaled(size, size, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+    out = QImage(size, size, QImage.Format.Format_ARGB32_Premultiplied)
+    out.fill(Qt.GlobalColor.transparent)
+    p = QPainter(out)
+    p.drawImage((size - scaled.width()) // 2, (size - scaled.height()) // 2, scaled)
+    p.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceIn)
+    p.fillRect(out.rect(), QColor(color))
+    p.end()
+    return QPixmap.fromImage(out)
+
+
 def icon(name: str, color: str = "#1d2b27", size: int = 32) -> QIcon:
     ic = QIcon()
+    if name == "broom":
+        for c, mode in ((color, QIcon.Mode.Normal), ("#9aa7a2", QIcon.Mode.Disabled)):
+            pm = broom_pixmap(c, size * 2)
+            pm.setDevicePixelRatio(2)
+            ic.addPixmap(pm, mode)
+        return ic
     for scale_color, mode in ((color, QIcon.Mode.Normal), ("#9aa7a2", QIcon.Mode.Disabled)):
         r = QSvgRenderer(QByteArray(svg(name, scale_color)))
         img = QImage(size * 2, size * 2, QImage.Format.Format_ARGB32_Premultiplied)
@@ -82,21 +102,20 @@ def icon(name: str, color: str = "#1d2b27", size: int = 32) -> QIcon:
     return ic
 
 
-APP_ICON_SVG = (
-    '<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 32 32">'
-    '<rect width="32" height="32" rx="8" fill="{bg}"/>'
-    '<g transform="translate(6.6 6.2) scale(0.8)" fill="{fg}">' + _BROOM + '</g>'
-    '</svg>')
-
-
 def app_icon_pixmap(bg: str, fg: str = "#ffffff", size: int = 256) -> QPixmap:
-    r = QSvgRenderer(QByteArray(APP_ICON_SVG.format(bg=bg, fg=fg).encode()))
-    img = QImage(size, size, QImage.Format.Format_ARGB32_Premultiplied)
-    img.fill(Qt.GlobalColor.transparent)
-    p = QPainter(img)
-    r.render(p, QRectF(0, 0, size, size))
+    """Скруглённый квадрат цвета bg с метлой цвета fg."""
+    out = QImage(size, size, QImage.Format.Format_ARGB32_Premultiplied)
+    out.fill(Qt.GlobalColor.transparent)
+    p = QPainter(out)
+    p.setRenderHint(QPainter.RenderHint.Antialiasing)
+    p.setPen(Qt.PenStyle.NoPen)
+    p.setBrush(QColor(bg))
+    p.drawRoundedRect(QRectF(0, 0, size, size), size * 0.25, size * 0.25)
+    inner = int(size * 0.66)
+    off = (size - inner) // 2
+    p.drawPixmap(off, off, broom_pixmap(fg, inner))
     p.end()
-    return QPixmap.fromImage(img)
+    return QPixmap.fromImage(out)
 
 
 def app_icon() -> QIcon:
