@@ -8,6 +8,8 @@ version = "0.1.0"
 description = "Cross-platform system cleaner for Windows and Linux (junk files, privacy traces, registry/system issues, startup manager, duplicate finder)"
 readme = "README.md"
 requires-python = ">=3.10"
+license = "GPL-3.0-only"
+license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md"]
 dependencies = ["PySide6-Essentials>=6.6"]
 
 [project.scripts]

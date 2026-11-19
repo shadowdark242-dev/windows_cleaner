@@ -99,7 +99,19 @@ cleanix/
 tests/
 ```
 
+## Contributing
+
+Issues and pull requests are welcome. Run the test suite before submitting:
+`QT_QPA_PLATFORM=offscreen python -m pytest`.
+
 ## License
 
-Cleanix is not open-source software. All rights are reserved by the author.
-Third-party components keep their own licenses; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+Copyright (C) 2026 shadowdark242-dev
+
+Cleanix is free software: you can redistribute it and/or modify it under the terms of the
+[GNU General Public License v3.0](LICENSE) as published by the Free Software Foundation.
+It is distributed in the hope that it will be useful, but **without any warranty**, without even the implied
+warranty of merchantability or fitness for a particular purpose.
+
+Third-party components keep their own licenses: the broom icon is from Phosphor Icons (MIT), and Qt/PySide6 is under the LGPL v3.
+See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
