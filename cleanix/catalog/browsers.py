@@ -159,8 +159,7 @@ def build(platform_filter: str = "all"):
         for kind, label, default, easy in KINDS:
             items.append(CleanItem(
                 f"br.{bid}.{kind}", bid, label, _chromium_scan(spec, kind), default,
-                clean=H.clean_cookie_dbs if kind == "cookies" else None, easy=easy,
-                sensitive=kind in ("forms", "passwords")))
+                clean=H.clean_cookie_dbs if kind == "cookies" else None, easy=easy))
     groups.append(Group("firefox", T("Mozilla Firefox"), "apps", "all", order))
     for kind, label, default, easy in KINDS:
         clean = None
@@ -168,8 +167,7 @@ def build(platform_filter: str = "all"):
             clean = H.clean_cookie_dbs
         elif kind == "history":
             clean = H.clean_firefox_history
-        items.append(CleanItem(f"br.firefox.{kind}", "firefox", label, _ff_scan(kind), default, clean=clean, easy=easy,
-                               sensitive=kind in ("forms", "passwords")))
+        items.append(CleanItem(f"br.firefox.{kind}", "firefox", label, _ff_scan(kind), default, clean=clean, easy=easy))
     return groups, items
 
 

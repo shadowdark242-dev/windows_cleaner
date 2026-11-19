@@ -22,8 +22,6 @@ def for_platform(platform: str) -> Tuple[List[Group], List[CleanItem]]:
 
 
 def is_checked(item: CleanItem, ctx: Ctx) -> bool:
-    if item.sensitive and not ctx.cfg.show_sensitive:
-        return False
     return ctx.cfg.selected.get(item.id, item.default)
 
 
