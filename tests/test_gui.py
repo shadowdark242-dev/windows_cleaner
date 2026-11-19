@@ -220,3 +220,37 @@ def test_table_copy_full_text(app):
     assert QApplication.clipboard().text() == "Edge\t" + long_cmd
     t.copy_cell(0, 1)
     assert QApplication.clipboard().text() == long_cmd
+
+
+@linux_only
+def test_reset_analysis_and_clean_rows_one_by_one(app, home, monkeypatch):
+    a = write(home / ".cache/thumbnails/a.png", b"x" * 300)
+    b = write(home / ".local/share/Trash/files/old.txt", b"y" * 100)
+    w = make_window(app, home, monkeypatch, only=("lin.thumbs", "lin.trash"))
+    page = w.page_by_key["custom"]
+    page.analyze()
+    wait_idle(app, page.runner)
+    rows = {page.table.item(r, 0).text(): r for r in range(page.table.rowCount())}
+    # снимаем галочку с корзины и чистим только эскизы
+    page.table.item(rows["Empty Trash"], 0).setCheckState(Qt.CheckState.Unchecked)
+    assert "Selected for cleaning: 1 files" in page.summary.text()
+    page.run_clean()
+    wait_idle(app, page.runner)
+    assert not a.exists() and b.exists()
+    assert page.table.item(rows["Thumbnail Cache"], 3).text() == "Cleaned"
+    # теперь отмечаем корзину и чистим вторую строку отдельно, без повторного анализа
+    page.table.item(rows["Empty Trash"], 0).setCheckState(Qt.CheckState.Checked)
+    page.run_clean()
+    wait_idle(app, page.runner)
+    assert not b.exists()
+    # сброс анализа очищает таблицу
+    page.reset_analysis()
+    assert page.table.rowCount() == 0 and page.results == []
+    # изменение отметок слева тоже сбрасывает устаревшие результаты
+    page.analyze()
+    wait_idle(app, page.runner)
+    assert page.table.rowCount() == 2
+    leaf = next(l for l in page._iter_leaves() if l.data(0, Qt.ItemDataRole.UserRole) == "lin.fonts")
+    leaf.setCheckState(0, Qt.CheckState.Checked)
+    assert page.table.rowCount() == 0
+    w.close()
