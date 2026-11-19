@@ -104,6 +104,10 @@ tests/
 Issues and pull requests are welcome. Run the test suite before submitting:
 `QT_QPA_PLATFORM=offscreen python -m pytest`.
 
+## Acknowledgements
+
+Built with the help of [Claude Code](https://claude.com/claude-code).
+
 ## License
 
 Copyright (C) 2026 shadowdark242-dev
