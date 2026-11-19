@@ -5,7 +5,16 @@ from PySide6.QtCore import QByteArray, QRectF, Qt
 from PySide6.QtGui import QIcon, QImage, QPainter, QPixmap
 from PySide6.QtSvg import QSvgRenderer
 
+_BROOM = (
+    '<path d="M21.1 .5c.8-.3 1.8 0 2.2.8.3.6.2 1.2-.1 1.8L19.6 9.3 16.9 8.1z"/>'
+    '<path d="M13.1 10.3c.9-1.9 2.9-2.7 4.7-1.9l3.9 1.7c1.6.7 2.2 2.1 1.7 3.8l-.2.6z"/>'
+    '<path d="M13.3 11.9 23 15.9c-.7 2.8-2.3 5.4-4.3 7.4-.4.4-1 .5-1.5.4-.7-.1-1.2-.1-1.9-.3l1.8-4.2-3.4 3.6c-1 .1-2-.1-3-.3L10.1 19 6.4 21.3C4.7 20.8 3.2 19.9 2 18.7c-.7-.7-.5-1.7.2-2.1 4.7-.4 8.4-1.5 11.1-4.7z"/>'
+    '<circle cx="2.6" cy="4.6" r="2.2"/><circle cx="7.4" cy="5.6" r="1.5"/><circle cx="6.1" cy="11.3" r="2.5"/>')
+
+_FILL = {"broom"}        # иконки-силуэты: заливка вместо контура
+
 _P = {
+    "broom": _BROOM,
     "sparkle": '<path d="M10 3C10.7 8.5 12.5 10.3 18 11C12.5 11.7 10.7 13.5 10 19C9.3 13.5 7.5 11.7 2 11C7.5 10.3 9.3 8.5 10 3Z"/><path d="M19 14C19.2 16 20 16.8 22 17C20 17.2 19.2 18 19 20C18.8 18 18 17.2 16 17C18 16.8 18.8 16 19 14Z"/>',
     "search": '<circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21"/>',
     "play": '<path d="M7 4.5v15l12-7.5z"/>',
@@ -51,6 +60,9 @@ _P = {
 
 def svg(name: str, color: str = "#1d2b27", size: int = 24) -> bytes:
     body = _P.get(name, _P["info"])
+    if name in _FILL:
+        return (f'<svg xmlns="http://www.w3.org/2000/svg" width="{size}" height="{size}" viewBox="0 0 24 24" '
+                f'fill="{color}">{body}</svg>').encode()
     return (f'<svg xmlns="http://www.w3.org/2000/svg" width="{size}" height="{size}" viewBox="0 0 24 24" fill="none" '
             f'stroke="{color}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">{body}</svg>').encode()
 
@@ -73,8 +85,7 @@ def icon(name: str, color: str = "#1d2b27", size: int = 32) -> QIcon:
 APP_ICON_SVG = (
     '<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 32 32">'
     '<rect width="32" height="32" rx="8" fill="{bg}"/>'
-    '<path fill="{fg}" d="M14 5C14.8 11.5 17.5 14.2 24 15C17.5 15.8 14.8 18.5 14 25C13.2 18.5 10.5 15.8 4 15C10.5 14.2 13.2 11.5 14 5Z"/>'
-    '<path fill="{fg}" d="M25 4C25.3 6.2 26.3 7.2 28.5 7.5C26.3 7.8 25.3 8.8 25 11C24.7 8.8 23.7 7.8 21.5 7.5C23.7 7.2 24.7 6.2 25 4Z"/>'
+    '<g transform="translate(6.6 6.2) scale(0.8)" fill="{fg}">' + _BROOM + '</g>'
     '</svg>')
 
 
