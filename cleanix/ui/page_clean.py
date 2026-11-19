@@ -318,6 +318,12 @@ class CustomPage(QWidget):
         if not rows:
             return
         r = self.results[rows[0].row()]
+        if not self.win.cfg.show_paths:
+            self.details.addItem(L("File paths are hidden. Enable “Show file paths” in Settings → General.",
+                                   "Пути файлов скрыты. Включите «Показывать пути файлов» в Настройки → Общие."))
+            if r.errors:
+                self.details.addItem(L("Errors: {n}", "Ошибок: {n}").format(n=len(r.errors)))
+            return
         for e in r.errors[:100]:
             it = QListWidgetItem("! " + e)
             it.setForeground(QBrush(QColor(palette(self.win.theme)["warn"])))

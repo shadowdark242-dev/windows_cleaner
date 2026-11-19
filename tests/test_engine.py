@@ -495,3 +495,24 @@ def test_scheduler_lines():
     assert SCH.CRON_MARK not in SCH.merge_cron(merged, None)
     args = SCH.windows_args({"freq": "daily", "time": "09:00"})
     assert args[:3] == ["schtasks", "/create", "/tn"] and "/st" in args and "09:00" in args
+
+
+def test_config_is_portable_next_to_program(tmp_path, monkeypatch):
+    from cleanix.core import config as C
+    monkeypatch.delenv("CLEANIX_CONFIG_DIR", raising=False)
+    monkeypatch.setattr(C, "app_dir", lambda: tmp_path / "prog")
+    (tmp_path / "prog").mkdir()
+    assert C.config_dir() == tmp_path / "prog" / "data"
+    cfg = C.Config(language="ru")
+    cfg.save()
+    assert (tmp_path / "prog/data/config.json").exists() and C.Config.load().language == "ru"
+    assert C.Config().show_paths is False
+
+
+def test_config_falls_back_when_program_dir_readonly(tmp_path, monkeypatch):
+    from cleanix.core import config as C
+    monkeypatch.delenv("CLEANIX_CONFIG_DIR", raising=False)
+    monkeypatch.setattr(C, "app_dir", lambda: tmp_path / "prog")
+    monkeypatch.setattr(C, "_writable", lambda p: False)
+    monkeypatch.setattr(C, "_fallback_dir", lambda: tmp_path / "fallback")
+    assert C.config_dir() == tmp_path / "fallback"

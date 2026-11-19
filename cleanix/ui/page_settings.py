@@ -65,6 +65,10 @@ class GeneralPage(SubPage):
         self.confirm.setChecked(cfg.confirm_clean)
         self.confirm.toggled.connect(self._confirm)
         self.lay.addWidget(self.confirm)
+        self.paths = QCheckBox(L("Show file paths in analysis results", "Показывать пути файлов в результатах анализа"))
+        self.paths.setChecked(cfg.show_paths)
+        self.paths.toggled.connect(self._paths)
+        self.lay.addWidget(self.paths)
         self.lay.addWidget(label(L("Secure deletion overwrites file contents before removing them. It is slower and is not "
                                    "effective on SSDs with wear-levelling.",
                                    "Надёжное удаление перезаписывает содержимое файла перед удалением. Оно медленнее и "
@@ -83,6 +87,10 @@ class GeneralPage(SubPage):
 
     def _secure(self) -> None:
         self.win.cfg.secure_passes = self.secure.currentData()
+        self.save()
+
+    def _paths(self, on: bool) -> None:
+        self.win.cfg.show_paths = on
         self.save()
 
     def _confirm(self, on: bool) -> None:
