@@ -65,6 +65,11 @@ class GeneralPage(SubPage):
         self.confirm.setChecked(cfg.confirm_clean)
         self.confirm.toggled.connect(self._confirm)
         self.lay.addWidget(self.confirm)
+        self.sens = QCheckBox(L("Show sensitive options (saved passwords, form data) — personal use only",
+                               "Показывать опции с паролями и данными форм — только для личного использования"))
+        self.sens.setChecked(cfg.show_sensitive)
+        self.sens.toggled.connect(self._sens)
+        self.lay.addWidget(self.sens)
         self.lay.addWidget(label(L("Secure deletion overwrites file contents before removing them. It is slower and is not "
                                    "effective on SSDs with wear-levelling.",
                                    "Надёжное удаление перезаписывает содержимое файла перед удалением. Оно медленнее и "
@@ -84,6 +89,11 @@ class GeneralPage(SubPage):
     def _secure(self) -> None:
         self.win.cfg.secure_passes = self.secure.currentData()
         self.save()
+
+    def _sens(self, on: bool) -> None:
+        self.win.cfg.show_sensitive = on
+        self.save()
+        self.win.reload_ui("settings")
 
     def _confirm(self, on: bool) -> None:
         self.win.cfg.confirm_clean = on

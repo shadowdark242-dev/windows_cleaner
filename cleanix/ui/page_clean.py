@@ -96,7 +96,7 @@ class CustomPage(QWidget):
             gi.setFlags(gi.flags() | Qt.ItemFlag.ItemIsUserCheckable | Qt.ItemFlag.ItemIsAutoTristate)
             gi.setData(0, Qt.ItemDataRole.UserRole, "group:" + g.id)
             t.addTopLevelItem(gi)
-            for it in (i for i in self.items if i.group == g.id):
+            for it in (i for i in self.items if i.group == g.id and (self.win.cfg.show_sensitive or not i.sensitive)):
                 text = str(it.name)
                 if it.admin:
                     text += "   · " + ADMIN_TAG()
@@ -245,11 +245,13 @@ class CustomPage(QWidget):
         if not s["count"]:
             self.summary.setText(L("Nothing to clean.", "Нечего очищать."))
             return
-        if self.win.cfg.confirm_clean and not ask(
-                self, L("Run Cleaner", "Очистка"),
-                L("{n} files ({s}) will be permanently deleted.\nThis cannot be undone. Continue?",
-                  "Будет безвозвратно удалено файлов: {n} ({s}).\nОтменить это нельзя. Продолжить?")
-                .format(n=s["count"], s=human_size(s["size"])), L("Delete", "Удалить")):
+        sens = [str(r.item.name) for r in self.results if r.item.sensitive and r.count]
+        msg = L("{n} files ({s}) will be permanently deleted.\nThis cannot be undone. Continue?",
+                "Будет безвозвратно удалено файлов: {n} ({s}).\nОтменить это нельзя. Продолжить?").format(n=s["count"], s=human_size(s["size"]))
+        if sens:
+            msg += "\n\n" + L("INCLUDES saved passwords / form data: you will lose them.",
+                               "ВКЛЮЧАЕТ сохранённые пароли / данные форм: они будут потеряны.")
+        if (self.win.cfg.confirm_clean or sens) and not ask(self, L("Run Cleaner", "Очистка"), msg, L("Delete", "Удалить")):
             return
         self._busy_ui(True)
         results = self.results
@@ -322,6 +324,9 @@ class CustomPage(QWidget):
             it = QListWidgetItem("! " + e)
             it.setForeground(QBrush(QColor(palette(self.win.theme)["warn"])))
             self.details.addItem(it)
+        if r.item.sensitive:
+            self.details.addItem(L("Sensitive data: file list is not shown.", "Конфиденциальные данные: список файлов не показывается."))
+            return
         for f in r.found[:1500]:
             self.details.addItem(f"{f.path}" + (f"   ({human_size(f.size)})" if f.size else ""))
         if len(r.found) > 1500:

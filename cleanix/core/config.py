@@ -35,6 +35,7 @@ class Config:
     secure_passes: int = 0            # 0 — обычное удаление, 1/3/7/35 — перезапись
     min_age_hours: int = 24           # не трогать временные файлы моложе N часов
     confirm_clean: bool = True
+    show_sensitive: bool = False      # показывать опции «пароли» и «данные форм»
     selected: Dict[str, bool] = field(default_factory=dict)      # id опции -> отмечена
     include: List[Dict[str, Any]] = field(default_factory=list)  # {path, mode, pattern, recursive}
     exclude: List[str] = field(default_factory=list)

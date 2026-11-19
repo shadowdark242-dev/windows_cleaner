@@ -495,3 +495,12 @@ def test_scheduler_lines():
     assert SCH.CRON_MARK not in SCH.merge_cron(merged, None)
     args = SCH.windows_args({"freq": "daily", "time": "09:00"})
     assert args[:3] == ["schtasks", "/create", "/tn"] and "/st" in args and "09:00" in args
+
+
+def test_sensitive_options_hidden_by_default(home):
+    from cleanix.catalog import is_checked
+    ctx = lin_ctx(home, config=Config(selected={"br.chrome.passwords": True}))
+    assert not is_checked(item("linux", "br.chrome.passwords"), ctx)          # скрыто → не отмечено
+    ctx.cfg.show_sensitive = True
+    assert is_checked(item("linux", "br.chrome.passwords"), ctx)
+    assert item("linux", "br.firefox.forms").sensitive and not item("linux", "br.chrome.cache").sensitive

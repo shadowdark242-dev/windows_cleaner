@@ -50,6 +50,7 @@ class CleanItem:
     clean: Optional[Callable[["Ctx", List[Found], "ItemResult"], None]] = None
     easy: str = ""            # категория в простом режиме ("" — не входит)
     note: Optional[Text] = None
+    sensitive: bool = False   # пароли / данные форм: скрыто, пока не включено в настройках
 
 
 @dataclass

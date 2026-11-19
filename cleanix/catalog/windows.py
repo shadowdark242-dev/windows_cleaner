@@ -278,7 +278,7 @@ ITEMS: List[CleanItem] = [
     CleanItem("win.ie.typed", "ie", T("Recently Typed URLs", "Недавно введённые адреса"), _ie_typed, True, "windows", easy="traces"),
     CleanItem("win.ie.index", "ie", T("Index.dat files", "Файлы Index.dat"), _ie_index, True, "windows"),
     CleanItem("win.ie.lastdl", "ie", T("Last Download Location", "Последняя папка загрузки"), _ie_lastdl, True, "windows", easy="traces"),
-    CleanItem("win.ie.forms", "ie", T("Autocomplete Form History", "История автозаполнения форм"), _ie_forms, False, "windows"),
+    CleanItem("win.ie.forms", "ie", T("Autocomplete Form History", "История автозаполнения форм"), _ie_forms, False, "windows", sensitive=True),
 
     CleanItem("win.exp.recent", "explorer", T("Recent Documents", "Недавние документы"), _recent_docs, False, "windows"),
     CleanItem("win.exp.runmru", "explorer", T("Run (in Start Menu)", "Выполнить (в меню «Пуск»)"), _run_mru, True, "windows", easy="traces"),
