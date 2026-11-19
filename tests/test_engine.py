@@ -529,7 +529,7 @@ def test_registry_category_risk_levels():
     assert recommended_ids(LI.CATEGORIES) == {c.id for c in LI.CATEGORIES}
 
 
-def test_protected_registry_entries_are_hidden_and_denied_not_errors(tmp_path):
+def test_protected_registry_entries_are_marked_and_denied_not_errors(tmp_path):
     reg = R.FakeRegistry()
     run = r"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Run"
     reg.add(run, {"Bad": '"C:\\nope\\x.exe"'})
@@ -538,7 +538,8 @@ def test_protected_registry_entries_are_hidden_and_denied_not_errors(tmp_path):
     reg.protected.add(clsid)
     ctx = rctx(reg, tmp_path)
     issues = scan_all(RC.CATEGORIES, ctx)
-    assert ctx.protected == 1 and "activex" not in {i.category for i in issues}
+    prot = [i for i in issues if i.category == "activex"]
+    assert ctx.protected == 1 and len(prot) == 1 and prot[0].extra.get("protected") and not prot[0].checked
     # если защищённый ключ всё же попал в список — отказ в доступе не ошибка
     class Denying(R.FakeRegistry):
         def delete_key(self, key):

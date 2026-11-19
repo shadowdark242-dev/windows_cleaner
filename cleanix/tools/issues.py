@@ -66,13 +66,11 @@ def scan_all(categories: List[Category], ctx: IssueCtx, selected: Optional[set] 
         try:
             found = cat.scan(ctx)
             if ctx.reg is not None:      # скрываем записи, которые нельзя изменить даже администратору
-                keep = []
                 for i in found:
                     if i.kind in ("regkey", "regvalue") and not ctx.reg.can_modify(i.location, i.kind == "regvalue"):
                         ctx.protected += 1
-                    else:
-                        keep.append(i)
-                found = keep
+                        i.extra["protected"] = True
+                        i.checked = False
             out.extend(found)
         except Exception as exc:
             if exc.__class__.__name__ == "Cancelled":

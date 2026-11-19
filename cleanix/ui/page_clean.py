@@ -69,7 +69,6 @@ class CustomPage(QWidget):
         rl.addWidget(self.summary)
         self.table = make_table([L("Option", "Опция"), L("Files", "Файлов"), L("Size", "Размер"), L("Status", "Статус")], 0)
         self.table.itemSelectionChanged.connect(self._show_details)
-        self.table.itemChanged.connect(self._row_toggled)
         self.details = QListWidget()
         self.details.setAlternatingRowColors(True)
         self.vsplit = QSplitter(Qt.Orientation.Vertical)      # высоту таблицы и списка файлов можно менять мышью
@@ -80,6 +79,7 @@ class CustomPage(QWidget):
         self.vsplit.setStretchFactor(1, 2)
         self.vsplit.setHandleWidth(8)
         remember_splitter(self.vsplit, win.cfg, "custom.v")
+        self.details.setVisible(win.cfg.show_paths)     # без путей нижняя панель не нужна
         rl.addWidget(self.vsplit, 1)
         split.addWidget(right)
         split.setSizes([360, 640])
@@ -262,34 +262,13 @@ class CustomPage(QWidget):
         return self.results[it.data(Qt.ItemDataRole.UserRole)] if it is not None else None
 
     def _pending(self) -> List[ItemResult]:
-        """Отмеченные строки, которые ещё не очищены."""
-        out = []
-        for row in range(self.table.rowCount()):
-            it = self.table.item(row, 0)
-            r = self._row_result(row)
-            if r is not None and it.checkState() == Qt.CheckState.Checked and r.item.id not in self.cleaned_ids:
-                out.append(r)
-        return out
-
-    def _row_toggled(self, item) -> None:
-        if item.column() == 0:
-            self._update_selection_summary()
+        """Найденное и ещё не очищенное в текущем анализе."""
+        return [r for r in self.results if r.count and not r.skipped and r.item.id not in self.cleaned_ids]
 
     def _update_selection_summary(self) -> None:
         s = engine.summarize(self._pending())
-        total = engine.summarize(self.results)
-        self.summary.setText(
-            L("Found {n} files ({t}). Selected for cleaning: {sn} files, {ss}.",
-              "Найдено файлов: {n} ({t}). Выбрано к очистке: {sn} файлов, {ss}.")
-            .format(n=total["count"], t=human_size(total["size"]), sn=s["count"], ss=human_size(s["size"])))
-
-    def _selectable_rows(self) -> int:
-        n = 0
-        for row in range(self.table.rowCount()):
-            r = self._row_result(row)
-            if r is not None and r.count and not r.skipped and r.item.id not in self.cleaned_ids:
-                n += 1
-        return n
+        self.summary.setText(L("Found {n} files, {s} can be freed.", "Найдено файлов: {n}. Можно освободить: {s}.")
+                             .format(n=s["count"], s=human_size(s["size"])))
 
     def run_clean(self) -> None:
         if self.runner.busy:
@@ -298,9 +277,6 @@ class CustomPage(QWidget):
             pend = self._pending()
             if pend:
                 self._confirm_and_clean(pend)
-                return
-            if self._selectable_rows():
-                self.summary.setText(L("Tick at least one row in the results.", "Отметьте хотя бы одну строку в результатах."))
                 return
         self.analyze(then_clean=True)
 
@@ -329,9 +305,8 @@ class CustomPage(QWidget):
     def _cleaned(self, pending: List[ItemResult]) -> None:
         self._busy_ui(False)
         self.progress.finish("")
-        kept = self._checked_ids()
         self.cleaned_ids |= {r.item.id for r in pending}
-        self._fill(self.results, keep_checked=kept)
+        self._fill(self.results)
         s = engine.summarize(pending)
         self.summary.setText(L("Done: removed {n} files, freed {s}. Errors: {e}.",
                                "Готово: удалено файлов — {n}, освобождено — {s}. Ошибок: {e}.")
@@ -346,16 +321,7 @@ class CustomPage(QWidget):
         self.progress.finish(msg)
         info(self, L("Error", "Ошибка"), msg, True)
 
-    def _checked_ids(self) -> set:
-        out = set()
-        for row in range(self.table.rowCount()):
-            it = self.table.item(row, 0)
-            r = self._row_result(row)
-            if r is not None and it.checkState() == Qt.CheckState.Checked:
-                out.add(r.item.id)
-        return out
-
-    def _fill(self, results: List[ItemResult], keep_checked: Optional[set] = None) -> None:
+    def _fill(self, results: List[ItemResult]) -> None:
         c = palette(self.win.theme)
         self.table.blockSignals(True)
         self.table.setRowCount(0)
@@ -375,9 +341,7 @@ class CustomPage(QWidget):
                 status = L("Nothing found", "Ничего нет")
             size = r.removed_size if done else r.size
             count = r.removed_count if done else r.count
-            selectable = bool(r.count) and not r.skipped and not done
-            checked = selectable and (r.item.id in keep_checked if keep_checked is not None else True)
-            it0 = cell(str(r.item.name), data=idx, checkable=selectable, checked=checked)
+            it0 = cell(str(r.item.name), data=idx)
             self.table.setItem(row, 0, it0)
             self.table.setItem(row, 1, cell(str(count), True))
             self.table.setItem(row, 2, cell(human_size(size), True))
@@ -396,13 +360,7 @@ class CustomPage(QWidget):
         if not rows:
             return
         r = self._row_result(rows[0].row())
-        if r is None:
-            return
-        if not self.win.cfg.show_paths:
-            self.details.addItem(L("File paths are hidden. Enable “Show file paths” in Settings → General.",
-                                   "Пути файлов скрыты. Включите «Показывать пути файлов» в Настройки → Общие."))
-            if r.errors:
-                self.details.addItem(L("Errors: {n}", "Ошибок: {n}").format(n=len(r.errors)))
+        if r is None or not self.win.cfg.show_paths:
             return
         for e in r.errors[:100]:
             it = QListWidgetItem("! " + e)

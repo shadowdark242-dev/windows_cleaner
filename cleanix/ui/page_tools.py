@@ -4,7 +4,7 @@ from __future__ import annotations
 import os
 from typing import Dict, List
 
-from PySide6.QtCore import QSize, Qt
+from PySide6.QtCore import QSize, Qt, QTimer
 from PySide6.QtGui import QBrush, QColor
 from PySide6.QtWidgets import (QCheckBox, QComboBox, QFileDialog, QHBoxLayout, QLineEdit, QListWidget, QSpinBox,
                                QSplitter, QStackedWidget, QTabBar, QTreeWidget, QTreeWidgetItem, QVBoxLayout,
@@ -65,6 +65,8 @@ class UninstallPanel(Panel):
     def __init__(self, win):
         super().__init__(win)
         self.programs: List[uninstall.Program] = []
+        self._icon_gen = 0
+        self._icon_queue: list = []
         self.search = QLineEdit()
         self.search.setPlaceholderText(L("Search…", "Поиск…"))
         self.search.textChanged.connect(self._filter)
@@ -97,13 +99,29 @@ class UninstallPanel(Panel):
             r = self.table.rowCount()
             self.table.insertRow(r)
             name_cell = cell(p.name, data=self.programs.index(p))
-            name_cell.setIcon(icon_for(p.icon_path or p.ident, self.win.theme))
+            name_cell.setIcon(icon_for("", self.win.theme))          # заглушка; настоящая иконка подгрузится
             self.table.setItem(r, 0, name_cell)
             self.table.setItem(r, 1, cell(p.publisher))
             self.table.setItem(r, 2, cell(p.version))
             self.table.setItem(r, 3, cell(human_size(p.size) if p.size else "", True))
             self.table.setItem(r, 4, cell(p.date))
         self.count.setText(L("Programs: {n}", "Программ: {n}").format(n=len(shown)))
+        self._icon_gen += 1
+        self._icon_queue = [(r, p.icon_path or p.ident) for r, p in enumerate(shown)]
+        QTimer.singleShot(0, lambda g=self._icon_gen: self._load_icons(g))
+
+    def _load_icons(self, gen: int) -> None:
+        """Иконки извлекаются из exe по несколько штук за раз, чтобы окно не подвисало."""
+        if gen != self._icon_gen:
+            return
+        for _ in range(3):
+            if not self._icon_queue:
+                return
+            row, src = self._icon_queue.pop(0)
+            it = self.table.item(row, 0)
+            if it is not None:
+                it.setIcon(icon_for(src, self.win.theme))
+        QTimer.singleShot(0, lambda: self._load_icons(gen))
 
     def do_uninstall(self) -> None:
         rows = self.table.selectionModel().selectedRows()

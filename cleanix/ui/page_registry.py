@@ -111,7 +111,9 @@ class IssuesPage(QWidget):
 
     def _check_rows(self, on: bool) -> None:
         for row in range(self.table.rowCount()):
-            self.table.item(row, 0).setCheckState(Qt.CheckState.Checked if on else Qt.CheckState.Unchecked)
+            it = self.table.item(row, 0)
+            if it.data(Qt.ItemDataRole.CheckStateRole) is not None:      # у защищённых строк галочки нет
+                it.setCheckState(Qt.CheckState.Checked if on else Qt.CheckState.Unchecked)
 
     def _selected_cats(self) -> set:
         return {self.cats.item(i).data(Qt.ItemDataRole.UserRole) for i in range(self.cats.count())
@@ -147,25 +149,38 @@ class IssuesPage(QWidget):
         names = {c.id: str(c.name) for c in self.categories}
         problems = {c.id: str(c.problem) for c in self.categories if c.problem}
         safe = recommended_ids(self.categories)
+        muted = QBrush(QColor(palette(self.win.theme)["muted"]))
+        prot_tip = L("Owned by Windows (TrustedInstaller). Even an administrator cannot change it, and it should not be "
+                     "forced: these are Windows components.",
+                     "Принадлежит Windows (TrustedInstaller). Даже администратор не может это изменить, и принудительно "
+                     "менять не стоит: это компоненты Windows.")
         for n, i in enumerate(self.issues):
             self.table.insertRow(n)
-            # проблемы из «осторожных/рискованных» категорий по умолчанию не отмечаются
-            self.table.setItem(n, 0, cell("", checkable=True, checked=i.checked and i.category in safe, data=n))
-            self.table.setItem(n, 1, cell(problems.get(i.category, i.problem), tooltip=names.get(i.category, "")))
-            self.table.setItem(n, 2, cell(i.data))
-            self.table.setItem(n, 3, cell(i.location + (f"  [{i.value_name}]" if i.value_name else "")))
-        count = len(self.issues)
-        text = (L("Found {n} problems.", "Найдено проблем: {n}.").format(n=count) if count
-                else L("No problems found.", "Проблем не найдено."))
+            prot = bool(i.extra.get("protected"))
+            if prot:
+                c0 = cell(L("system", "система"), data=n, tooltip=prot_tip)
+            else:
+                # проблемы из «осторожных/рискованных» категорий по умолчанию не отмечаются
+                c0 = cell("", checkable=True, checked=i.checked and i.category in safe, data=n)
+            cells = [c0, cell(problems.get(i.category, i.problem), tooltip=prot_tip if prot else names.get(i.category, "")),
+                     cell(i.data), cell(i.location + (f"  [{i.value_name}]" if i.value_name else ""))]
+            for col, c in enumerate(cells):
+                if prot:
+                    c.setForeground(muted)
+                self.table.setItem(n, col, c)
+        fixable = sum(1 for i in self.issues if not i.extra.get("protected"))
+        text = (L("Found {n} problems that can be fixed.", "Найдено проблем, которые можно исправить: {n}.").format(n=fixable)
+                if fixable else L("Nothing to fix.", "Исправлять нечего."))
         if self.protected:
-            text += " " + L("{m} protected system entries were skipped (they cannot be changed).",
-                            "Защищённых системных записей пропущено: {m} (их нельзя изменить).").format(m=self.protected)
+            text += " " + L("{m} more belong to Windows itself (grey) — they are shown but cannot be changed.",
+                            "Ещё {m} принадлежат самой Windows (серые) — они показаны, но изменить их нельзя.").format(m=self.protected)
         self.summary.setText(text)
-        self.rb["fix"].setEnabled(bool(count))
+        self.rb["fix"].setEnabled(bool(fixable))
 
     def fix(self) -> None:
         todo = [self.issues[self.table.item(r, 0).data(Qt.ItemDataRole.UserRole)] for r in range(self.table.rowCount())
-                if self.table.item(r, 0).checkState() == Qt.CheckState.Checked]
+                if self.table.item(r, 0).data(Qt.ItemDataRole.CheckStateRole) is not None
+                and self.table.item(r, 0).checkState() == Qt.CheckState.Checked]
         todo = [i for i in todo if i.kind != "error"]
         if not todo:
             return

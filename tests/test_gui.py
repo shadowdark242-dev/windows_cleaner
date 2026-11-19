@@ -32,14 +32,14 @@ def wait_idle(app, *runners, timeout=15):
         app.processEvents()
 
 
-def make_window(app, home, monkeypatch, only=()):
+def make_window(app, home, monkeypatch, only=(), show_paths=False):
     monkeypatch.setenv("HOME", str(home))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(home / ".config"))
     monkeypatch.setenv("XDG_DATA_HOME", str(home / ".local/share"))
     monkeypatch.setenv("XDG_CACHE_HOME", str(home / ".cache"))
     from cleanix.ui.main_window import MainWindow
     from cleanix.ui.theme import stylesheet
-    cfg = Config(confirm_clean=False, language="en")
+    cfg = Config(confirm_clean=False, language="en", show_paths=show_paths)
     _, items = for_platform("linux")
     cfg.selected = {i.id: (i.id in only) for i in items}      # ВАЖНО: ничего лишнего (например /tmp) не трогаем
     set_language("en")
@@ -54,7 +54,7 @@ def test_custom_clean_end_to_end(app, home, monkeypatch):
     write(home / ".cache/thumbnails/a.png", b"x" * 2048)
     write(home / ".local/share/Trash/files/old.txt", b"y" * 100)
     keep = write(home / "Documents/keep.txt")
-    w = make_window(app, home, monkeypatch, only=("lin.thumbs", "lin.trash"))
+    w = make_window(app, home, monkeypatch, only=("lin.thumbs", "lin.trash"), show_paths=True)
     page = w.page_by_key["custom"]
     w.show_tab("custom")
     page.analyze()
@@ -223,36 +223,39 @@ def test_table_copy_full_text(app):
 
 
 @linux_only
-def test_reset_analysis_and_clean_rows_one_by_one(app, home, monkeypatch):
+def test_reset_analysis_and_clean_one_option_at_a_time(app, home, monkeypatch):
     a = write(home / ".cache/thumbnails/a.png", b"x" * 300)
     b = write(home / ".local/share/Trash/files/old.txt", b"y" * 100)
-    w = make_window(app, home, monkeypatch, only=("lin.thumbs", "lin.trash"))
+    w = make_window(app, home, monkeypatch, only=("lin.thumbs",))
     page = w.page_by_key["custom"]
+    # в результатах нет собственных галочек: отметки только в дереве слева
     page.analyze()
     wait_idle(app, page.runner)
-    rows = {page.table.item(r, 0).text(): r for r in range(page.table.rowCount())}
-    # снимаем галочку с корзины и чистим только эскизы
-    page.table.item(rows["Empty Trash"], 0).setCheckState(Qt.CheckState.Unchecked)
-    assert "Selected for cleaning: 1 files" in page.summary.text()
+    assert page.table.rowCount() == 1
+    assert page.table.item(0, 0).data(Qt.ItemDataRole.CheckStateRole) is None
     page.run_clean()
     wait_idle(app, page.runner)
     assert not a.exists() and b.exists()
-    assert page.table.item(rows["Thumbnail Cache"], 3).text() == "Cleaned"
-    # теперь отмечаем корзину и чистим вторую строку отдельно, без повторного анализа
-    page.table.item(rows["Empty Trash"], 0).setCheckState(Qt.CheckState.Checked)
-    page.run_clean()
-    wait_idle(app, page.runner)
-    assert not b.exists()
+    assert page.table.item(0, 3).text() == "Cleaned"
     # сброс анализа очищает таблицу
     page.reset_analysis()
     assert page.table.rowCount() == 0 and page.results == []
     # изменение отметок слева тоже сбрасывает устаревшие результаты
     page.analyze()
     wait_idle(app, page.runner)
-    assert page.table.rowCount() == 2
-    leaf = next(l for l in page._iter_leaves() if l.data(0, Qt.ItemDataRole.UserRole) == "lin.fonts")
+    leaf = next(l for l in page._iter_leaves() if l.data(0, Qt.ItemDataRole.UserRole) == "lin.trash")
     leaf.setCheckState(0, Qt.CheckState.Checked)
     assert page.table.rowCount() == 0
+    w.close()
+
+
+def test_details_panel_hidden_without_paths(app, home, monkeypatch):
+    w = make_window(app, home, monkeypatch, show_paths=False)
+    page = w.page_by_key["custom"]
+    assert page.details.isHidden()
+    g = w.page_by_key["settings"].pages["general"]
+    g.paths.setChecked(True)
+    assert not page.details.isHidden() and w.cfg.show_paths
     w.close()
 
 
@@ -288,7 +291,7 @@ def test_accent_setting_is_saved_and_applied(app, home, monkeypatch):
 
 
 def test_results_splitter_is_resizable(app, home, monkeypatch):
-    w = make_window(app, home, monkeypatch)
+    w = make_window(app, home, monkeypatch, show_paths=True)
     page = w.page_by_key["custom"]
     sp = page.vsplit
     assert sp.count() == 2 and sp.widget(0) is page.table and sp.widget(1) is page.details
@@ -298,7 +301,7 @@ def test_results_splitter_is_resizable(app, home, monkeypatch):
 
 
 def test_splitter_and_window_sizes_are_saved_and_restored(app, home, monkeypatch):
-    w = make_window(app, home, monkeypatch)
+    w = make_window(app, home, monkeypatch, show_paths=True)
     page = w.page_by_key["custom"]
     w.resize(1000, 700)
     page.vsplit.setSizes([111, 333])
@@ -316,3 +319,21 @@ def test_splitter_and_window_sizes_are_saved_and_restored(app, home, monkeypatch
     assert p2.vsplit.sizes()[0] < p2.vsplit.sizes()[1]
     assert (w2.width(), w2.height()) == (1000, 700)
     w2.close()
+
+
+def test_registry_protected_rows_have_no_checkbox(app, home, monkeypatch):
+    from cleanix.tools.issues import Issue
+    w = make_window(app, home, monkeypatch)
+    page = w.page_by_key["issues"]
+    ok = Issue(page.categories[0].id, "p", "d", "loc1")
+    prot = Issue(page.categories[0].id, "p", "d", "loc2", extra={"protected": True}, checked=False)
+    page.issues, page.protected = [ok, prot], 1
+    page._fill()
+    page._check_rows(True)
+    assert page.table.item(1, 0).data(Qt.ItemDataRole.CheckStateRole) is None
+    assert page.table.item(0, 0).checkState() == Qt.CheckState.Checked
+    assert page.rb["fix"].isEnabled()
+    page.issues, page.protected = [prot], 1
+    page._fill()
+    assert not page.rb["fix"].isEnabled()
+    w.close()

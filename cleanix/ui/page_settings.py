@@ -126,6 +126,9 @@ class GeneralPage(SubPage):
     def _paths(self, on: bool) -> None:
         self.win.cfg.show_paths = on
         self.save()
+        custom = self.win.page_by_key.get("custom")
+        if custom is not None:
+            custom.details.setVisible(on)
 
     def _confirm(self, on: bool) -> None:
         self.win.cfg.confirm_clean = on
@@ -212,7 +215,7 @@ class CookiesPage(SubPage):
 class IncludeDialog(QDialog):
     def __init__(self, parent, path: str):
         super().__init__(parent)
-        self.setWindowTitle(L("Include", "Включение"))
+        self.setWindowTitle(L("Extra folder", "Своя папка"))
         self.setMinimumWidth(480)
         lay = QVBoxLayout(self)
         lay.addWidget(QLabel(path))
@@ -241,7 +244,7 @@ class IncludeDialog(QDialog):
 class IncludePage(SubPage):
     def __init__(self, win):
         super().__init__(win)
-        self.lay.addWidget(label(L("Include", "Включения"), "h1"))
+        self.lay.addWidget(label(L("Extra folders to clean", "Свои папки для очистки"), "h1"))
         self.lay.addWidget(label(L("Extra folders and files to clean. Enable the option “Custom Files and Folders” "
                                    "on the “Custom Clean” tab to use them.",
                                    "Дополнительные папки и файлы для очистки. Включите опцию «Пользовательские файлы и папки» "
@@ -295,7 +298,7 @@ class IncludePage(SubPage):
 class ExcludePage(SubPage):
     def __init__(self, win):
         super().__init__(win)
-        self.lay.addWidget(label(L("Exclude", "Исключения"), "h1"))
+        self.lay.addWidget(label(L("Exclusions — never delete", "Исключения — никогда не удалять"), "h1"))
         self.lay.addWidget(label(L("Files and folders listed here are never deleted by any cleaning option.",
                                    "Перечисленные файлы и папки не удаляются ни одной опцией очистки."), "muted"))
         self.list = QListWidget()
@@ -460,7 +463,7 @@ class SettingsPage(QWidget):
     def build_ribbon(self) -> Ribbon:
         r = Ribbon(self.win.theme)
         defs = [("general", L("General", "Общие"), "general"), ("cookies", "Cookies", "cookie"),
-                ("include", L("Include", "Включения"), "include"), ("exclude", L("Exclude", "Исключения"), "exclude"),
+                ("include", L("Extra folders", "Свои папки"), "include"), ("exclude", L("Exclude", "Исключения"), "exclude"),
                 ("schedule", L("Scheduling", "Расписание"), "calendar"), ("advanced", L("Advanced", "Дополнительно"), "advanced"),
                 ("about", L("About", "О программе"), "info")]
         btns = {k: r.button(k, name, ic, lambda kk=k: self.show_page(kk)) for k, name, ic in defs}
