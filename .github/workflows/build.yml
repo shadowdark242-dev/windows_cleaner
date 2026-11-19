@@ -1,8 +1,10 @@
 name: Build
 
-# Запускается только вручную (Actions → Build → Run workflow) — автоматически минуты не расходуются.
+# Вручную (Actions → Build → Run workflow, когда файл в основной ветке) и при push в рабочую ветку.
 on:
   workflow_dispatch:
+  push:
+    branches: [claude/intelligent-thompson-yin1sd]
 
 jobs:
   build:
