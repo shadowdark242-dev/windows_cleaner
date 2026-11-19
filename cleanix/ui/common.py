@@ -4,7 +4,8 @@ from __future__ import annotations
 from typing import Callable, List, Optional
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import (QAbstractItemView, QFileDialog, QFrame, QHBoxLayout, QHeaderView, QLabel, QMessageBox,
+from PySide6.QtGui import QKeySequence
+from PySide6.QtWidgets import (QAbstractItemView, QApplication, QMenu, QFileDialog, QFrame, QHBoxLayout, QHeaderView, QLabel, QMessageBox,
                                QProgressBar, QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget)
 
 from ..core.i18n import L
@@ -36,8 +37,50 @@ def button(text: str, cb: Optional[Callable] = None, kind: str = "") -> QPushBut
     return b
 
 
+class CopyTable(QTableWidget):
+    """Таблица с копированием: Ctrl+C — выбранные строки, правый клик — ячейка / строка."""
+
+    def _row_text(self, row: int) -> str:
+        parts = []
+        for c in range(self.columnCount()):
+            it = self.item(row, c)
+            parts.append(it.text() if it else "")
+        return "\t".join(parts)
+
+    def copy_rows(self) -> None:
+        rows = sorted({i.row() for i in self.selectedIndexes()})
+        if rows:
+            QApplication.clipboard().setText("\n".join(self._row_text(r) for r in rows))
+
+    def copy_cell(self, row: int, col: int) -> None:
+        it = self.item(row, col)
+        if it:
+            QApplication.clipboard().setText(it.text())
+
+    def keyPressEvent(self, e) -> None:  # noqa: N802
+        if e.matches(QKeySequence.StandardKey.Copy):
+            self.copy_rows()
+            return
+        super().keyPressEvent(e)
+
+    def contextMenuEvent(self, e) -> None:  # noqa: N802
+        idx = self.indexAt(e.pos())
+        if not idx.isValid():
+            return
+        if not self.selectionModel().isRowSelected(idx.row(), idx.parent()):
+            self.selectRow(idx.row())
+        menu = QMenu(self)
+        a_cell = menu.addAction(L("Copy cell", "Копировать ячейку"))
+        a_row = menu.addAction(L("Copy row", "Копировать строку"))
+        chosen = menu.exec(e.globalPos())
+        if chosen is a_cell:
+            self.copy_cell(idx.row(), idx.column())
+        elif chosen is a_row:
+            self.copy_rows()
+
+
 def make_table(headers: List[str], stretch_col: int = 0, checkable: bool = False) -> QTableWidget:
-    t = QTableWidget(0, len(headers))
+    t = CopyTable(0, len(headers))
     t.setHorizontalHeaderLabels(headers)
     t.verticalHeader().setVisible(False)
     t.setAlternatingRowColors(True)

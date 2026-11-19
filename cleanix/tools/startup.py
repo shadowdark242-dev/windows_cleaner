@@ -34,6 +34,7 @@ class Entry:
     can_delete: bool = True
     source: str = ""
     data: Dict[str, Any] = field(default_factory=dict)
+    icon_path: str = ""           # файл с иконкой (Windows) / имя иконки из темы (Linux)
 
 
 # ======================================================================
@@ -44,6 +45,12 @@ def _approved_state(reg: R.RegistryBackend, key: str, name: str) -> bool:
     if not v or not isinstance(v[0], (bytes, bytearray)) or not v[0]:
         return True
     return (v[0][0] & 1) == 0    # 02/06 — включено, 03/07 — отключено
+
+
+def _icon_file(command: str) -> str:
+    from .uninstall import exe_from_command
+    p = exe_from_command(command)
+    return p if p and os.path.isfile(p) else ""
 
 
 def win_run_entries(ctx: Ctx) -> List[Entry]:
@@ -64,7 +71,7 @@ def win_run_entries(ctx: Ctx) -> List[Entry]:
             if not name:
                 continue
             out.append(Entry("run", name, str(data), loc, "", _approved_state(reg, appr, name) if appr else True,
-                             toggle, True, "reg", {"key": key, "approved": appr}))
+                             toggle, True, "reg", {"key": key, "approved": appr}, _icon_file(str(data))))
     # папки автозагрузки
     for loc, base, appr in (
         ("Startup (user)", ctx.env_path("APPDATA", "Microsoft", "Windows", "Start Menu", "Programs", "Startup"),
@@ -76,7 +83,7 @@ def win_run_entries(ctx: Ctx) -> List[Entry]:
             for f in sorted(base.iterdir()):
                 if f.is_file() and f.name.lower() != "desktop.ini":
                     out.append(Entry("run", f.name, str(f), loc, "", _approved_state(reg, appr, f.name), True, True,
-                                     "folder", {"path": str(f), "approved": appr}))
+                                     "folder", {"path": str(f), "approved": appr}, str(f)))
     return out
 
 
@@ -204,7 +211,8 @@ def lin_run(ctx: Ctx) -> List[Entry]:
             e = _desktop_fields(f)
             hidden = e.get("Hidden", "false").lower() == "true" or e.get("X-GNOME-Autostart-enabled", "true").lower() == "false"
             entries[f.name] = Entry("run", e.get("Name") or f.stem, e.get("Exec", ""), f"autostart ({scope})", "",
-                                    not hidden, True, True, "desktop", {"path": str(f), "scope": scope})
+                                    not hidden, True, True, "desktop", {"path": str(f), "scope": scope},
+                                    e.get("Icon", ""))
     return sorted(entries.values(), key=lambda x: x.name.lower())
 
 

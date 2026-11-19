@@ -4,7 +4,7 @@ from __future__ import annotations
 import os
 from typing import Dict, List
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QSize, Qt
 from PySide6.QtGui import QBrush, QColor
 from PySide6.QtWidgets import (QCheckBox, QComboBox, QFileDialog, QHBoxLayout, QLineEdit, QListWidget, QSpinBox,
                                QSplitter, QStackedWidget, QTabBar, QTreeWidget, QTreeWidgetItem, QVBoxLayout,
@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (QCheckBox, QComboBox, QFileDialog, QHBoxLayout, Q
 from ..core.i18n import L, T, human_size
 from ..tools import diskanalyzer, duplicates, plugins, restore, startup, trash, uninstall, wiper
 from . import common
+from .appicons import icon_for
 from .common import ProgressRow, ask, button, cell, choose_dir, info, label, make_table
 from .ribbon import Ribbon
 from .theme import palette
@@ -69,6 +70,7 @@ class UninstallPanel(Panel):
         self.search.textChanged.connect(self._filter)
         self.table = make_table([L("Name", "Название"), L("Publisher", "Издатель"), L("Version", "Версия"),
                                  L("Size", "Размер"), L("Installed", "Установлено")], 0)
+        self.table.setIconSize(QSize(18, 18))
         self.btn_un = button(L("Uninstall", "Удалить"), self.do_uninstall, "danger")
         self.lay.addLayout(self.toolbar(self.search, None, button(L("Refresh", "Обновить"), self.refresh), self.btn_un))
         self.lay.addWidget(self.table, 1)
@@ -94,7 +96,9 @@ class UninstallPanel(Panel):
         for p in shown:
             r = self.table.rowCount()
             self.table.insertRow(r)
-            self.table.setItem(r, 0, cell(p.name, data=self.programs.index(p)))
+            name_cell = cell(p.name, data=self.programs.index(p))
+            name_cell.setIcon(icon_for(p.icon_path or p.ident, self.win.theme))
+            self.table.setItem(r, 0, name_cell)
             self.table.setItem(r, 1, cell(p.publisher))
             self.table.setItem(r, 2, cell(p.version))
             self.table.setItem(r, 3, cell(human_size(p.size) if p.size else "", True))
@@ -134,6 +138,7 @@ class StartupPanel(Panel):
         self.entries: List[startup.Entry] = []
         self.table = make_table([L("Enabled", "Включено"), L("Key", "Ключ"), L("Name", "Название"),
                                  L("Command", "Команда"), L("Publisher", "Издатель")], 3)
+        self.table.setIconSize(QSize(18, 18))
         self.b_en = button(L("Enable", "Включить"), lambda: self._toggle(True))
         self.b_dis = button(L("Disable", "Отключить"), lambda: self._toggle(False))
         self.b_del = button(L("Delete", "Удалить"), self._delete, "danger")
@@ -160,7 +165,10 @@ class StartupPanel(Panel):
         for n, e in enumerate(self.entries):
             self.table.insertRow(n)
             yn = L("Yes", "Да") if e.enabled else L("No", "Нет")
-            items = [cell(yn, data=n), cell(e.location), cell(e.name), cell(e.command, tooltip=e.command), cell(e.publisher)]
+            name_cell = cell(e.name)
+            if e.tab == "run":
+                name_cell.setIcon(icon_for(e.icon_path, self.win.theme))
+            items = [cell(yn, data=n), cell(e.location), name_cell, cell(e.command, tooltip=e.command), cell(e.publisher)]
             for i, it in enumerate(items):
                 if not e.enabled:
                     it.setForeground(QBrush(QColor(c["muted"])))

@@ -1,6 +1,7 @@
 """Список установленных программ и их удаление."""
 from __future__ import annotations
 
+import os
 import shutil
 from dataclasses import dataclass
 from typing import List, Optional
@@ -21,6 +22,44 @@ class Program:
     kind: str = ""         # reg | dpkg | rpm | pacman | flatpak | snap
     ident: str = ""        # пакет / ключ / app-id
     command: str = ""      # Windows: UninstallString
+    icon_path: str = ""    # Windows: файл с иконкой (exe/ico); Linux: пусто, иконка берётся из темы по ident
+
+
+# --------------------------- иконки -----------------------------------
+def exe_from_command(cmd) -> str:
+    """Путь к файлу из строки вида '"C:\\a b\\app.exe" /arg' или 'C:\\app.exe,0'. Пустая строка — не нашли."""
+    import re
+    if not isinstance(cmd, str) or not cmd.strip():
+        return ""
+    s = os.path.expandvars(cmd.strip())
+    if s.startswith('"'):
+        end = s.find('"', 1)
+        s = s[1:end] if end > 0 else s[1:]
+    else:
+        m = re.match(r"(.+?\.(?:exe|ico|dll|icl))(?:[ ,/\"].*)?$", s, re.I)
+        if m:
+            s = m.group(1)
+    s = re.sub(r",\s*-?\d+$", "", s).strip()
+    return s
+
+
+def find_icon_file(display_icon, install_location, uninstall_cmd) -> str:
+    """Лучший файл-источник иконки: DisplayIcon → exe из InstallLocation → exe деинсталлятора."""
+    cand = exe_from_command(display_icon)
+    if cand and os.path.isfile(cand):
+        return cand
+    loc = exe_from_command(install_location) if isinstance(install_location, str) else ""
+    if loc and os.path.isdir(loc):
+        try:
+            exes = sorted(f for f in os.listdir(loc) if f.lower().endswith(".exe") and not f.lower().startswith(("unins", "uninst", "setup")))
+        except OSError:
+            exes = []
+        if exes:
+            return os.path.join(loc, exes[0])
+    cand = exe_from_command(uninstall_cmd)
+    if cand and os.path.isfile(cand) and not os.path.basename(cand).lower().startswith("msiexec"):
+        return cand
+    return ""
 
 
 # --------------------------- Windows ---------------------------------
@@ -53,7 +92,8 @@ def list_windows(ctx: Ctx) -> List[Program]:
                 name.strip(), str(v.get("publisher", "") or ""), str(v.get("displayversion", "") or ""),
                 int(size_kb) * 1024 if isinstance(size_kb, int) else 0,
                 f"{d[6:8]}.{d[4:6]}.{d[:4]}" if len(d) == 8 and d.isdigit() else "",
-                "reg", f"{root}\\{sub}", cmd))
+                "reg", f"{root}\\{sub}", cmd,
+                find_icon_file(v.get("displayicon"), v.get("installlocation"), cmd)))
     return sorted(out, key=lambda p: p.name.lower())
 
 

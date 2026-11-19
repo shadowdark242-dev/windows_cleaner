@@ -552,3 +552,17 @@ def test_protected_registry_entries_are_hidden_and_denied_not_errors(tmp_path):
 def test_every_category_has_localized_problem_text():
     for c in RC.CATEGORIES + LI.CATEGORIES:
         assert c.problem and str(c.problem)
+
+
+def test_icon_source_resolution(tmp_path):
+    exe = write(tmp_path / "App/app.exe"); write(tmp_path / "App/unins000.exe")
+    assert UN.exe_from_command(f'"{exe}",0') == str(exe) and UN.exe_from_command("") == ""
+    assert UN.find_icon_file(f"{exe},0", "", "") == str(exe)                                  # DisplayIcon
+    assert UN.find_icon_file("", str(tmp_path / "App"), "") == str(exe)                       # exe из InstallLocation, не unins*
+    assert UN.find_icon_file("", "", f'"{tmp_path / "App/unins000.exe"}" /S') .endswith("unins000.exe")
+    assert UN.find_icon_file("missing,0", "", "MsiExec.exe /X{1}") == ""
+    reg = FakeRegistry()
+    u = r"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\A"
+    reg.add(u, {"DisplayName": "Real", "UninstallString": "x", "DisplayIcon": f"{exe},0"})
+    ctx, _ = win_ctx(tmp_path, reg)
+    assert UN.list_windows(ctx)[0].icon_path == str(exe)

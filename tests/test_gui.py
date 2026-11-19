@@ -199,3 +199,24 @@ def test_issues_page_defaults_and_recommended_button(app, home, monkeypatch):
     page._fill()
     assert [page.table.item(r, 0).checkState() == Qt.CheckState.Checked for r in range(2)] == [True, False]
     w.close()
+
+
+def test_app_icons_never_null(app):
+    from cleanix.ui.appicons import icon_for
+    assert not icon_for("").isNull() and not icon_for("no-such-icon-xyz").isNull()
+    assert not icon_for("/no/such/file.exe").isNull()
+
+
+def test_table_copy_full_text(app):
+    from PySide6.QtCore import QItemSelectionModel
+    from cleanix.ui.common import cell, make_table
+    t = make_table(["A", "B"], 0)
+    long_cmd = '"C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe" --win-session-start ' + "x" * 200
+    t.insertRow(0)
+    t.setItem(0, 0, cell("Edge"))
+    t.setItem(0, 1, cell(long_cmd))
+    t.selectRow(0)
+    t.copy_rows()
+    assert QApplication.clipboard().text() == "Edge\t" + long_cmd
+    t.copy_cell(0, 1)
+    assert QApplication.clipboard().text() == long_cmd
