@@ -40,6 +40,7 @@ jobs:
         with:
           name: cleanix-${{ runner.os }}
           path: dist/*
+          retention-days: 7
 
   release:
     # Публикует релиз с бинарниками при пуше тега v* (например, v0.1.0)
