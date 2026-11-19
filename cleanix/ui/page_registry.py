@@ -29,6 +29,7 @@ class IssuesPage(QWidget):
         self.windows = NAME == "windows"
         self.categories = registry_cleaner.CATEGORIES if self.windows else linux_issues.CATEGORIES
         self.issues: List[Issue] = []
+        self.protected = 0
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(14, 12, 14, 10)
@@ -126,7 +127,8 @@ class IssuesPage(QWidget):
         def work(w):
             ctx = self.win.make_ctx()
             ictx = IssueCtx(ctx.registry, ctx.env, ctx.home, ctx.platform, w.cancel_event)
-            return scan_all(self.categories, ictx, sel, lambda t, i, n: w.report(t, i, n))
+            issues = scan_all(self.categories, ictx, sel, lambda t, i, n: w.report(t, i, n))
+            return issues, ictx.protected
 
         def done(issues):
             self.rb["scan"].setEnabled(True)
@@ -134,7 +136,7 @@ class IssuesPage(QWidget):
             self.progress.finish("")
             if issues is None:
                 return
-            self.issues = issues
+            self.issues, self.protected = issues
             self._fill()
 
         self.runner.start(work, done, self._fail, lambda t, i, n: self.progress.update_progress(t, i, n))
@@ -142,17 +144,22 @@ class IssuesPage(QWidget):
     def _fill(self) -> None:
         self.table.setRowCount(0)
         names = {c.id: str(c.name) for c in self.categories}
+        problems = {c.id: str(c.problem) for c in self.categories if c.problem}
         safe = recommended_ids(self.categories)
         for n, i in enumerate(self.issues):
             self.table.insertRow(n)
             # проблемы из «осторожных/рискованных» категорий по умолчанию не отмечаются
             self.table.setItem(n, 0, cell("", checkable=True, checked=i.checked and i.category in safe, data=n))
-            self.table.setItem(n, 1, cell(i.problem, tooltip=names.get(i.category, "")))
+            self.table.setItem(n, 1, cell(problems.get(i.category, i.problem), tooltip=names.get(i.category, "")))
             self.table.setItem(n, 2, cell(i.data))
             self.table.setItem(n, 3, cell(i.location + (f"  [{i.value_name}]" if i.value_name else "")))
         count = len(self.issues)
-        self.summary.setText(L("Found {n} problems.", "Найдено проблем: {n}.").format(n=count) if count
-                             else L("No problems found.", "Проблем не найдено."))
+        text = (L("Found {n} problems.", "Найдено проблем: {n}.").format(n=count) if count
+                else L("No problems found.", "Проблем не найдено."))
+        if self.protected:
+            text += " " + L("{m} protected system entries were skipped (they cannot be changed).",
+                            "Защищённых системных записей пропущено: {m} (их нельзя изменить).").format(m=self.protected)
+        self.summary.setText(text)
         self.rb["fix"].setEnabled(bool(count))
 
     def fix(self) -> None:
@@ -178,12 +185,17 @@ class IssuesPage(QWidget):
             return
         ctx = self.win.make_ctx()
         if self.windows:
-            fixed, errors = registry_cleaner.fix(todo, ctx.registry, backup) if ctx.registry else (0, ["registry unavailable"])
+            fixed, errors, denied = registry_cleaner.fix(todo, ctx.registry, backup) if ctx.registry else (0, ["registry unavailable"], 0)
         else:
-            fixed, errors = linux_issues.fix(todo, backup)
+            fixed, errors, denied = linux_issues.fix(todo, backup)
         text = L("Fixed: {n}.", "Исправлено: {n}.").format(n=fixed)
+        if denied:
+            text += "\n" + L("Skipped protected system entries: {n} (access denied, nothing was changed).",
+                              "Пропущено защищённых системных записей: {n} (доступ запрещён, ничего не изменено).").format(n=denied)
+        if self.windows and fixed:
+            text += "\n" + L("Backup: {p}", "Резервная копия: {p}").format(p=backup)
         if errors:
-            text += "\n" + L("Errors:", "Ошибки:") + "\n" + "\n".join(errors[:10])
+            text += "\n" + L("Errors: {n}. First ones:", "Ошибок: {n}. Первые из них:").format(n=len(errors)) + "\n" + "\n".join(errors[:3])
         info(self, L("Done", "Готово"), text, bool(errors))
         self.win.set_status(text.splitlines()[0])
         self.scan()

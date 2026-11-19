@@ -300,13 +300,35 @@ CATEGORIES: List[Category] = [
 ]
 
 
+PROBLEMS = {
+    "shared_dlls": T("Missing shared DLL", "Общая DLL отсутствует"),
+    "extensions": T("Unused file extension", "Неиспользуемое расширение файла"),
+    "activex": T("Invalid COM/ActiveX class", "Недействительный класс COM/ActiveX"),
+    "typelibs": T("Missing type library", "Библиотека типов отсутствует"),
+    "applications": T("Missing application", "Приложение отсутствует"),
+    "fonts": T("Missing font file", "Файл шрифта отсутствует"),
+    "app_paths": T("Invalid application path", "Неверный путь приложения"),
+    "help": T("Missing help file", "Файл справки отсутствует"),
+    "installer": T("Missing installer folder", "Папка установщика отсутствует"),
+    "obsolete": T("Obsolete software entry", "Запись об удалённой программе"),
+    "startup": T("Startup entry points to missing file", "Автозапуск указывает на отсутствующий файл"),
+    "menu_order": T("Stale Start menu ordering", "Устаревший порядок меню «Пуск»"),
+    "mui": T("Stale MUI cache entry", "Устаревшая запись кэша MUI"),
+    "sounds": T("Missing sound file", "Звуковой файл отсутствует"),
+    "services": T("Service executable is missing", "Исполняемый файл службы отсутствует"),
+}
+for _c in CATEGORIES:
+    _c.problem = PROBLEMS[_c.id]
+
+
 # ----------------------------------------------------------------------
 # Исправление
 # ----------------------------------------------------------------------
-def fix(issues: List[Issue], reg: R.RegistryBackend, backup_path: Optional[str]) -> Tuple[int, List[str]]:
+def fix(issues: List[Issue], reg: R.RegistryBackend, backup_path: Optional[str]) -> Tuple[int, List[str], int]:
     """Делает .reg-бэкап затронутых ключей и удаляет проблемные значения/ключи.
 
-    Возвращает (исправлено, ошибки). Если бэкап создать не удалось — ничего не меняем.
+    Возвращает (исправлено, ошибки, отказано_в_доступе). Если бэкап создать не удалось — ничего не меняем.
+    Защищённые ключи (отказ в доступе) не считаются ошибкой: они просто пропускаются.
     """
     todo = [i for i in issues if i.kind in ("regkey", "regvalue")]
     if backup_path:
@@ -314,8 +336,8 @@ def fix(issues: List[Issue], reg: R.RegistryBackend, backup_path: Optional[str])
         try:
             R.write_reg_file(reg, keys, backup_path)
         except OSError as exc:
-            return 0, [f"backup failed: {exc}"]
-    fixed, errors = 0, []
+            return 0, [f"backup failed: {exc}"], 0
+    fixed, errors, denied = 0, [], 0
     for i in todo:
         try:
             if i.kind == "regkey":
@@ -323,6 +345,8 @@ def fix(issues: List[Issue], reg: R.RegistryBackend, backup_path: Optional[str])
             else:
                 reg.delete_value(i.location, i.value_name or "")
             fixed += 1
+        except PermissionError:
+            denied += 1
         except OSError as exc:
             errors.append(f"{i.location}: {exc}")
-    return fixed, errors
+    return fixed, errors, denied

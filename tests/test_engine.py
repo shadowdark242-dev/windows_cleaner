@@ -327,8 +327,8 @@ def test_registry_fix_creates_backup_and_removes(tmp_path):
     reg.set_value(key, "Num", 5, R.REG_DWORD)
     issue = [i for i in RC.scan_startup(rctx(reg, tmp_path))][0]
     backup = tmp_path / "b.reg"
-    fixed, errs = RC.fix([issue], reg, str(backup))
-    assert fixed == 1 and not errs
+    fixed, errs, denied = RC.fix([issue], reg, str(backup))
+    assert fixed == 1 and not errs and denied == 0
     assert [n for n, _, _ in reg.enum_values(key)] == ["Keep", "Num"]
     text = backup.read_text(encoding="utf-16")
     assert text.startswith("Windows Registry Editor Version 5.00")
@@ -340,7 +340,7 @@ def test_registry_fix_aborts_when_backup_fails(tmp_path):
     key = r"HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run"
     reg.add(key, {"Bad": '"C:\\nope\\x.exe"'})
     issue = RC.scan_startup(rctx(reg, tmp_path))[0]
-    fixed, errs = RC.fix([issue], reg, str(tmp_path / "no/such/dir/b.reg"))
+    fixed, errs, _ = RC.fix([issue], reg, str(tmp_path / "no/such/dir/b.reg"))
     assert fixed == 0 and errs and reg.get_value(key, "Bad")
 
 
@@ -359,7 +359,7 @@ def test_linux_issues_and_fix(home):
     issues = scan_all(LI.CATEGORIES, ctx)
     cats = sorted(i.category for i in issues)
     assert cats == ["autostart", "launchers", "mimeapps", "recent", "symlinks"]
-    fixed, errs = LI.fix(issues, str(home / "bk"))
+    fixed, errs, _ = LI.fix(issues, str(home / "bk"))
     assert fixed == 5 and not errs
     assert (apps / "good.desktop").exists() and not (apps / "bad.desktop").exists()
     assert "no/such" not in (home / ".local/share/recently-used.xbel").read_text()
@@ -527,3 +527,28 @@ def test_registry_category_risk_levels():
     assert {"startup", "shared_dlls", "app_paths", "mui", "fonts"} <= rec
     assert not ({"activex", "services", "extensions", "typelibs", "obsolete", "installer"} & rec)
     assert recommended_ids(LI.CATEGORIES) == {c.id for c in LI.CATEGORIES}
+
+
+def test_protected_registry_entries_are_hidden_and_denied_not_errors(tmp_path):
+    reg = R.FakeRegistry()
+    run = r"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Run"
+    reg.add(run, {"Bad": '"C:\\nope\\x.exe"'})
+    clsid = r"HKEY_LOCAL_MACHINE\SOFTWARE\Classes\CLSID\{A}"
+    reg.add(clsid + r"\InprocServer32", {"": str(tmp_path / "gone.dll")})
+    reg.protected.add(clsid)
+    ctx = rctx(reg, tmp_path)
+    issues = scan_all(RC.CATEGORIES, ctx)
+    assert ctx.protected == 1 and "activex" not in {i.category for i in issues}
+    # если защищённый ключ всё же попал в список — отказ в доступе не ошибка
+    class Denying(R.FakeRegistry):
+        def delete_key(self, key):
+            raise PermissionError(5, "denied")
+    d = Denying(); d.add(clsid)
+    from cleanix.tools.issues import Issue
+    fixed, errs, denied = RC.fix([Issue("activex", "p", "d", clsid, None, "regkey")], d, None)
+    assert (fixed, errs, denied) == (0, [], 1)
+
+
+def test_every_category_has_localized_problem_text():
+    for c in RC.CATEGORIES + LI.CATEGORIES:
+        assert c.problem and str(c.problem)

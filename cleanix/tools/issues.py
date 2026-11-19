@@ -29,6 +29,7 @@ class Category:
     name: Text
     scan: Callable[["IssueCtx"], List[Issue]]
     risk: str = RISK_SAFE          # safe — рекомендуется; caution/risky — только осознанно
+    problem: Optional[Text] = None  # локализованное описание проблемы для таблицы
 
     @property
     def recommended(self) -> bool:
@@ -46,6 +47,7 @@ class IssueCtx:
         self.home = home
         self.platform = platform
         self.cancel = cancel
+        self.protected = 0          # сколько защищённых системных записей пропущено
 
     def check_cancel(self):
         if self.cancel is not None and self.cancel.is_set():
@@ -62,7 +64,16 @@ def scan_all(categories: List[Category], ctx: IssueCtx, selected: Optional[set] 
         if progress:
             progress(str(cat.name), i, len(todo))
         try:
-            out.extend(cat.scan(ctx))
+            found = cat.scan(ctx)
+            if ctx.reg is not None:      # скрываем записи, которые нельзя изменить даже администратору
+                keep = []
+                for i in found:
+                    if i.kind in ("regkey", "regvalue") and not ctx.reg.can_modify(i.location, i.kind == "regvalue"):
+                        ctx.protected += 1
+                    else:
+                        keep.append(i)
+                found = keep
+            out.extend(found)
         except Exception as exc:
             if exc.__class__.__name__ == "Cancelled":
                 raise

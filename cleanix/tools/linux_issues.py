@@ -153,12 +153,23 @@ CATEGORIES: List[Category] = [
 ]
 
 
+PROBLEMS = {
+    "launchers": T("Launcher points to a missing program", "Ярлык указывает на отсутствующую программу"),
+    "autostart": T("Autostart entry points to a missing program", "Автозапуск указывает на отсутствующую программу"),
+    "symlinks": T("Broken symbolic link", "Битая символическая ссылка"),
+    "mimeapps": T("Association to an uninstalled application", "Ассоциация с удалённым приложением"),
+    "recent": T("Recent file no longer exists", "Недавний файл больше не существует"),
+}
+for _c in CATEGORIES:
+    _c.problem = PROBLEMS[_c.id]
+
+
 def _backup(path: str, backup_dir: str) -> None:
     os.makedirs(backup_dir, exist_ok=True)
     shutil.copy2(path, os.path.join(backup_dir, f"{int(time.time())}-{os.path.basename(path)}"), follow_symlinks=False)
 
 
-def fix(issues: List[Issue], backup_dir: Optional[str]) -> Tuple[int, List[str]]:
+def fix(issues: List[Issue], backup_dir: Optional[str]) -> Tuple[int, List[str], int]:
     fixed, errors = 0, []
     lines_by_file = {}
     for i in issues:
@@ -197,4 +208,4 @@ def fix(issues: List[Issue], backup_dir: Optional[str]) -> Tuple[int, List[str]]
             Path(path).write_text(text, encoding="utf-8")
         except OSError as exc:
             errors.append(f"{path}: {exc.strerror or exc}")
-    return fixed, errors
+    return fixed, errors, 0

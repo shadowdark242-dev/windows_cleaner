@@ -32,6 +32,10 @@ class RegistryBackend:
     def delete_value(self, key: str, name: str) -> None: raise NotImplementedError
     def delete_key(self, key: str) -> None: raise NotImplementedError
 
+    def can_modify(self, key: str, value: bool = False) -> bool:
+        """Можно ли изменить ключ (value=True — значения в нём, иначе удалить сам ключ)."""
+        return True
+
 
 class WinRegistry(RegistryBackend):
     """Реализация поверх winreg (только Windows)."""
@@ -115,12 +119,28 @@ class WinRegistry(RegistryBackend):
         root, sub = self._split(key)
         self.w.DeleteKey(root, sub)
 
+    def can_modify(self, key, value=False):
+        """Защищённые ключи (владелец TrustedInstaller и т. п.) недоступны даже администратору."""
+        root, sub = self._split(key)
+        access = self.w.KEY_SET_VALUE if value else 0x10000   # DELETE
+        try:
+            with self.w.OpenKey(root, sub, 0, access):
+                return True
+        except PermissionError:
+            return False
+        except OSError:
+            return True      # ключа нет / иная ошибка — пусть решает сама правка
+
 
 class FakeRegistry(RegistryBackend):
     """Реестр в памяти — для тестов и разработки на не-Windows."""
 
     def __init__(self):
         self.keys: Dict[str, Dict[str, Tuple[Any, int]]] = {}
+        self.protected: set = set()     # ключи, недоступные для изменения (для тестов)
+
+    def can_modify(self, key, value=False):
+        return self._n(key) not in {self._n(k) for k in self.protected}
 
     @staticmethod
     def _n(key: str) -> str:
