@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cleanix"
+version = "0.1.0"
+description = "Cross-platform system cleaner for Windows and Linux (junk files, privacy traces, registry/system issues, startup manager, duplicate finder)"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = ["PySide6-Essentials>=6.6"]
+
+[project.scripts]
+cleanix = "cleanix.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["cleanix*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
