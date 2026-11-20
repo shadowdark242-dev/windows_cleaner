@@ -7,7 +7,7 @@ from typing import Dict, List
 
 from PySide6.QtCore import QSize, Qt, QTimer
 from PySide6.QtGui import QBrush, QColor
-from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QFileDialog, QHBoxLayout, QLineEdit, QListWidget, QSpinBox,
+from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QFileDialog, QHBoxLayout, QHeaderView, QLineEdit, QListWidget, QSpinBox,
                                QSplitter, QStackedWidget, QStyle, QTabBar, QTreeWidget, QTreeWidgetItem, QVBoxLayout,
                                QWidget)
 
@@ -354,9 +354,13 @@ class DiskPanel(Panel):
         self.tree.setHeaderLabels([L("Folder", "Папка"), L("Size", "Размер"), "%", L("Files", "Файлов"), L("Folders", "Папок")])
         self.tree.setUniformRowHeights(True)
         self.tree.setRootIsDecorated(True)
+        head = self.tree.header()
+        head.setStretchLastSection(False)
+        head.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)       # имя папки занимает остаток, без горизонтальной прокрутки
+        head.setMinimumSectionSize(70)
         for c in range(1, 5):
-            self.tree.headerItem().setTextAlignment(c, Qt.AlignmentFlag.AlignRight)
-        self.tree.setColumnWidth(0, 300)
+            head.setSectionResizeMode(c, QHeaderView.ResizeMode.ResizeToContents)
+        self.tree.setTextElideMode(Qt.TextElideMode.ElideMiddle)
         self.tree.setSortingEnabled(True)
         self.tree.sortByColumn(1, Qt.SortOrder.DescendingOrder)
         self.tree.itemExpanded.connect(self._expanded)
@@ -367,7 +371,7 @@ class DiskPanel(Panel):
         self.contents.setSortingEnabled(False)
         struct.addWidget(self.tree)
         struct.addWidget(self.contents)
-        struct.setSizes([520, 480])
+        struct.setSizes([430, 570])
         common.remember_splitter(struct, win.cfg, "disk.struct")
         self.stack.addWidget(struct)
 

@@ -114,6 +114,9 @@ def stylesheet(name: str, check: str = "", chevron: str = "") -> str:
     c = palette(name)
     chk = f"image: url({check});" if check else ""
     chev = f"image: url({chevron});" if chevron else ""
+    # стрелки сортировки лежат рядом с chevron.svg; у заголовка оставляем справа место под стрелку
+    up = f"image: url({chevron.rsplit('/', 1)[0]}/sort-up.svg);" if chevron else ""
+    down = f"image: url({chevron.rsplit('/', 1)[0]}/sort-down.svg);" if chevron else ""
     return f"""
 * {{ font-family: "Segoe UI", "Noto Sans", "Ubuntu", "DejaVu Sans", sans-serif; font-size: 13px; color: {c['text']}; }}
 QMainWindow, QDialog, QWidget#root {{ background: {c['bg']}; }}
@@ -165,7 +168,9 @@ QTreeWidget::item, QListWidget::item {{ padding: 3px 2px; }}
 QTreeWidget::item:selected, QTableWidget::item:selected, QListWidget::item:selected {{ background: {c['selected']}; color: {c['text']}; }}
 QTreeWidget::item:hover, QListWidget::item:hover {{ background: {c['hover']}; }}
 QHeaderView::section {{ background: {c['header']}; border: none; border-right: 1px solid {c['border']};
-    border-bottom: 1px solid {c['border']}; padding: 6px 8px; font-weight: 600; }}
+    border-bottom: 1px solid {c['border']}; padding: 6px 26px 6px 8px; font-weight: 600; }}
+QHeaderView::up-arrow {{ {up} width: 10px; height: 10px; subcontrol-origin: padding; subcontrol-position: center right; right: 5px; }}
+QHeaderView::down-arrow {{ {down} width: 10px; height: 10px; subcontrol-origin: padding; subcontrol-position: center right; right: 5px; }}
 QCheckBox, QRadioButton {{ spacing: 8px; }}
 QCheckBox::indicator, QRadioButton::indicator {{ width: 16px; height: 16px; }}
 QCheckBox::indicator {{ border: 1px solid {c['muted']}; border-radius: 4px; background: {c['panel']}; }}

@@ -25,6 +25,10 @@ def _write_assets(check_color: str) -> tuple[str, str]:
         chev.write_bytes(
             b'<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12" fill="none" '
             b'stroke="#6b7a75" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 4.5l3.5 3.5 3.5-3.5"/></svg>')
+        for name, path in (("sort-up.svg", "M2.5 7.5l3.5-3.5 3.5 3.5"), ("sort-down.svg", "M2.5 4.5l3.5 3.5 3.5-3.5")):
+            (d / name).write_text(
+                f'<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12" fill="none" '
+                f'stroke="#6b7a75" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="{path}"/></svg>')
     except OSError:
         return "", ""
     return chk.as_posix(), chev.as_posix()
