@@ -7,8 +7,8 @@ from typing import Dict, List
 
 from PySide6.QtCore import QSize, Qt, QTimer
 from PySide6.QtGui import QBrush, QColor
-from PySide6.QtWidgets import (QCheckBox, QComboBox, QFileDialog, QHBoxLayout, QLineEdit, QListWidget, QSpinBox,
-                               QSplitter, QStackedWidget, QTabBar, QTreeWidget, QTreeWidgetItem, QVBoxLayout,
+from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QFileDialog, QHBoxLayout, QLineEdit, QListWidget, QSpinBox,
+                               QSplitter, QStackedWidget, QStyle, QTabBar, QTreeWidget, QTreeWidgetItem, QVBoxLayout,
                                QWidget)
 
 from ..core.config import backup_dir
@@ -301,13 +301,28 @@ class PluginsPanel(Panel):
 
 
 # ======================================================================
+class _DiskItem(QTreeWidgetItem):
+    """Строка дерева папок; числовые колонки сортируются по значению, а не по тексту."""
+
+    def __lt__(self, other) -> bool:
+        col = self.treeWidget().sortColumn() if self.treeWidget() else 0
+        if col == 0:
+            return self.text(0).lower() < other.text(0).lower()
+        return (self.data(col, Qt.ItemDataRole.UserRole) or 0) < (other.data(col, Qt.ItemDataRole.UserRole) or 0)
+
+
 class DiskPanel(Panel):
     title = T("Disk Analyzer", "Анализатор диска")
     icon = "disk"
+    TICK_MS = 1000          # как часто обновляется картина во время анализа
 
     def __init__(self, win):
         super().__init__(win)
-        self.report = None
+        self.report: diskanalyzer.Report | None = None
+        self.del_runner = TaskRunner(self)
+        self._items: Dict[int, _DiskItem] = {}        # id(Node) -> строка дерева
+        self._files_cache: tuple = ("", [])           # (путь папки, файлы) для правой панели
+        self._busy_delete = False
         self.path = QComboBox()
         self.path.setEditable(True)
         self.path.setMinimumWidth(320)
@@ -318,75 +333,402 @@ class DiskPanel(Panel):
         self.b_stop = button(L("Stop", "Стоп"), self.runner.stop)
         self.b_stop.setEnabled(False)
         self.lay.addLayout(self.toolbar(self.path, button(L("Browse…", "Обзор…"), self._browse), self.b_go, self.b_stop, None))
-        split = QSplitter()
+
+        self.modes = QTabBar()
+        self.modes.setObjectName("subtabs")
+        self.modes.addTab(L("By file type", "По типам файлов"))
+        self.modes.addTab(L("By disk structure", "По структуре диска"))
+        self.modes.currentChanged.connect(self._mode_changed)
+        self.lay.addWidget(self.modes)
+        self.stack = QStackedWidget()
+        self.lay.addWidget(self.stack, 1)
+
+        # --- по типам файлов
+        types = QSplitter()
         self.cats = make_table([L("Type", "Тип"), L("Files", "Файлов"), L("Size", "Размер"), "%"], 0)
         self.cats.itemSelectionChanged.connect(self._show_files)
         self.files = make_table([L("File", "Файл"), L("Size", "Размер")], 0)
-        split.addWidget(self.cats)
-        split.addWidget(self.files)
-        split.setSizes([380, 620])
-        common.remember_splitter(split, win.cfg, "disk.h")
-        self.lay.addWidget(split, 1)
-        self.lay.addLayout(self.toolbar(None, button(L("Show in folder", "Показать в папке"), self._reveal)))
+        types.addWidget(self.cats)
+        types.addWidget(self.files)
+        types.setSizes([380, 620])
+        common.remember_splitter(types, win.cfg, "disk.h")
+        self.stack.addWidget(types)
+
+        # --- по структуре диска
+        struct = QSplitter()
+        self.tree = QTreeWidget()
+        self.tree.setHeaderLabels([L("Folder", "Папка"), L("Size", "Размер"), "%", L("Files", "Файлов"), L("Folders", "Папок")])
+        self.tree.setUniformRowHeights(True)
+        self.tree.setRootIsDecorated(True)
+        for c in range(1, 5):
+            self.tree.headerItem().setTextAlignment(c, Qt.AlignmentFlag.AlignRight)
+        self.tree.setColumnWidth(0, 300)
+        self.tree.setSortingEnabled(True)
+        self.tree.sortByColumn(1, Qt.SortOrder.DescendingOrder)
+        self.tree.itemExpanded.connect(self._expanded)
+        self.tree.itemSelectionChanged.connect(self._tree_selected)
+        self.contents = make_table([L("Name", "Имя"), L("Size", "Размер"), "%", L("Files", "Файлов"), L("Folders", "Папок"),
+                                    L("Modified", "Изменён")], 0)
+        self.contents.setIconSize(QSize(16, 16))
+        self.contents.setSortingEnabled(False)
+        struct.addWidget(self.tree)
+        struct.addWidget(self.contents)
+        struct.setSizes([520, 480])
+        common.remember_splitter(struct, win.cfg, "disk.struct")
+        self.stack.addWidget(struct)
+
+        self.b_reveal = button(L("Show in folder", "Показать в папке"), self._reveal)
+        self.b_rescan = button(L("Recount folder", "Пересчитать папку"), self._rescan_selected)
+        self.b_trash = button(L("Move to trash", "В корзину"), lambda: self._delete(False))
+        self.b_del = button(L("Delete permanently", "Удалить навсегда"), lambda: self._delete(True), "danger")
+        self.lay.addLayout(self.toolbar(self.b_reveal, self.b_rescan, None, self.b_trash, self.b_del))
+        self.summary = label(L("Choose a drive or folder and press “Analyze”. Results stay until the next analysis.",
+                               "Выберите диск или папку и нажмите «Анализ». Результат сохраняется до следующего анализа."), "muted")
+        self.lay.addWidget(self.summary)
         self.lay.addWidget(self.progress)
 
+        self.timer = QTimer(self)
+        self.timer.setInterval(self.TICK_MS)
+        self.timer.timeout.connect(self._tick)
+
+    # ------------------------------------------------------------ запуск
     def _browse(self) -> None:
         d = choose_dir(self)
         if d:
             self.path.setEditText(d)
 
     def start(self) -> None:
-        if self.runner.busy:
+        if self.runner.busy or self._busy_delete:
             return
         root = self.path.currentText().strip()
         if not os.path.isdir(root):
             return
+        rep = diskanalyzer.Report(root)
+        rep.scanning = True
+        self.report = rep
+        self._items.clear()
+        self.tree.clear()
+        self.contents.setRowCount(0)
+        self.files.setRowCount(0)
+        self._files_cache = ("", [])
         self.b_go.setEnabled(False)
         self.b_stop.setEnabled(True)
+        self._buttons()
 
         def work(w):
-            return diskanalyzer.analyze(root, w.cancel_event, lambda n, cur: w.report(f"{n} {L('files', 'файлов')}: {cur}"))
+            return diskanalyzer.analyze(root, w.cancel_event, lambda n, cur: w.report(f"{n} {L('files', 'файлов')}: {cur}"),
+                                        report=rep)
 
-        def done(rep):
+        def done(_):
+            self.timer.stop()
             self.b_go.setEnabled(True)
             self.b_stop.setEnabled(False)
             self.progress.finish("")
-            if rep:
-                self.report = rep
-                self._fill()
+            rep.scanning = False
+            self._buttons()
+            self._refresh_all(force=True)
 
-        self.runner.start(work, done, self.fail, lambda t, i, n: self.progress.update_progress(t, 0, 0))
+        self.timer.start()
+        self.runner.start(work, done, self._scan_failed, lambda t, i, n: self.progress.update_progress(t, 0, 0))
 
-    def _fill(self) -> None:
+    def _scan_failed(self, msg: str) -> None:
+        self.timer.stop()
+        self.b_go.setEnabled(True)
+        self.b_stop.setEnabled(False)
+        if self.report:
+            self.report.scanning = False
+        self._buttons()
+        self.fail(msg)
+
+    def _buttons(self) -> None:
+        idle = bool(self.report) and not self.runner.busy and not self._busy_delete
+        for b in (self.b_trash, self.b_del, self.b_rescan):
+            b.setEnabled(idle)
+
+    # ------------------------------------------------------------ обновление картины
+    def _tick(self) -> None:
+        if self.isVisible():
+            self._refresh_all()
+
+    def showEvent(self, e) -> None:       # вернулись на вкладку: показываем актуальное состояние
+        super().showEvent(e)
+        if self.report:
+            self._refresh_all(force=True)
+
+    def _mode_changed(self, i: int) -> None:
+        self.stack.setCurrentIndex(i)
+        self._refresh_all(force=True)
+
+    def _refresh_all(self, force: bool = False) -> None:
         rep = self.report
+        if rep is None or rep.tree is None:
+            return
+        if self.stack.currentIndex() == 0:
+            self._fill_types()
+        else:
+            self._refresh_tree()
+            self._fill_contents()
+        t = rep.tree
+        text = L("{p}: {s}, {f} files, {d} folders", "{p}: {s}, файлов: {f}, папок: {d}").format(
+            p=rep.root, s=human_size(t.size), f=t.files, d=t.dirs)
+        if rep.scanning:
+            text += "  — " + L("analyzing…", "идёт анализ…")
+        self.summary.setText(text)
+
+    # ------------------------------------------------------------ по типам
+    def _fill_types(self) -> None:
+        rep = self.report
+        keep = self._current_key()
+        self.cats.blockSignals(True)
         self.cats.setRowCount(0)
         total = rep.total_size or 1
         rows = [("", L("All", "Все"), rep.total_count, rep.total_size)] + [
             (k, str(diskanalyzer.CATEGORIES[k][0]), rep.count[k], rep.size[k])
             for k in sorted(diskanalyzer.CATEGORIES, key=lambda k: -rep.size[k])]
+        sel = 0
         for n, (key, name, cnt, size) in enumerate(rows):
             self.cats.insertRow(n)
             self.cats.setItem(n, 0, cell(name, data=key))
             self.cats.setItem(n, 1, cell(str(cnt), True))
             self.cats.setItem(n, 2, cell(human_size(size), True))
             self.cats.setItem(n, 3, cell(f"{size * 100 / total:.1f}", True))
-        self.cats.selectRow(0)
+            if key == keep:
+                sel = n
+        self.cats.selectRow(sel)
+        self.cats.blockSignals(False)
+        self._show_files()
+
+    def _current_key(self) -> str:
+        rows = self.cats.selectionModel().selectedRows()
+        return (self.cats.item(rows[0].row(), 0).data(Qt.ItemDataRole.UserRole) or "") if rows else ""
 
     def _show_files(self) -> None:
-        rows = self.cats.selectionModel().selectedRows()
-        if not rows or not self.report:
+        if not self.report or not self.cats.rowCount():
             return
-        key = self.cats.item(rows[0].row(), 0).data(Qt.ItemDataRole.UserRole) or None
+        key = self._current_key() or None
         self.files.setRowCount(0)
         for n, (size, path) in enumerate(self.report.largest(key, 500)):
             self.files.insertRow(n)
             self.files.setItem(n, 0, cell(path, data=path, tooltip=path))
             self.files.setItem(n, 1, cell(human_size(size), True))
 
-    def _reveal(self) -> None:
-        rows = self.files.selectionModel().selectedRows()
+    # ------------------------------------------------------------ по структуре
+    def _fill_row(self, it: _DiskItem, node: diskanalyzer.Node) -> None:
+        par = node.parent.size if node.parent else node.size
+        pct = node.size * 100 / par if par else 0.0
+        vals = (human_size(node.size), f"{pct:.1f} %", str(node.files), str(node.dirs))
+        nums = (node.size, pct, node.files, node.dirs)
+        for c, (v, n) in enumerate(zip(vals, nums), 1):
+            if it.text(c) != v:
+                it.setText(c, v)
+            it.setData(c, Qt.ItemDataRole.UserRole, n)
+            it.setTextAlignment(c, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+
+    def _make_item(self, node: diskanalyzer.Node) -> _DiskItem:
+        it = _DiskItem([node.name])
+        it.setData(0, Qt.ItemDataRole.UserRole, node)
+        it.setToolTip(0, node.path)
+        it.setIcon(0, QApplication.style().standardIcon(QStyle.StandardPixmap.SP_DirIcon))
+        self._items[id(node)] = it
+        self._fill_row(it, node)
+        return it
+
+    def _sync_children(self, it: _DiskItem) -> None:
+        """Приводит дочерние строки в соответствие с узлом (только для раскрытых папок)."""
+        node = it.data(0, Qt.ItemDataRole.UserRole)
+        kids = list(node.children)
+        alive = {id(k) for k in kids}
+        for i in reversed(range(it.childCount())):
+            ch = it.child(i)
+            cn = ch.data(0, Qt.ItemDataRole.UserRole)
+            if cn is None or id(cn) not in alive:            # заглушка или удалённая папка
+                it.removeChild(ch)
+                if cn is not None:
+                    self._items.pop(id(cn), None)
+        have = {id(it.child(i).data(0, Qt.ItemDataRole.UserRole)) for i in range(it.childCount())}
+        for k in kids:
+            if id(k) not in have:
+                ch = self._make_item(k)
+                it.addChild(ch)
+        for i in range(it.childCount()):
+            ch = it.child(i)
+            cn = ch.data(0, Qt.ItemDataRole.UserRole)
+            self._fill_row(ch, cn)
+            self._mark_expandable(ch, cn)
+            if ch.isExpanded():
+                self._sync_children(ch)
+
+    @staticmethod
+    def _mark_expandable(it: _DiskItem, node: diskanalyzer.Node) -> None:
+        """У нераскрытой папки с подпапками держим пустую заглушку, чтобы рисовалась стрелка."""
+        if it.isExpanded():
+            return
+        if node.children and it.childCount() == 0:
+            it.addChild(QTreeWidgetItem())
+        elif not node.children and it.childCount():
+            it.takeChildren()
+
+    def _refresh_tree(self) -> None:
+        rep = self.report
+        root = rep.tree
+        self.tree.setSortingEnabled(False)
+        try:
+            top = self._items.get(id(root))
+            if top is None:
+                top = self._make_item(root)
+                top.setText(0, root.path)
+                self.tree.addTopLevelItem(top)
+                top.setExpanded(True)
+                self.tree.setCurrentItem(top)
+            self._fill_row(top, root)
+            self._sync_children(top)
+        finally:
+            self.tree.setSortingEnabled(True)
+
+    def _expanded(self, it: _DiskItem) -> None:
+        if it.childCount() and it.child(0).data(0, Qt.ItemDataRole.UserRole) is None:
+            it.takeChildren()
+        self.tree.setSortingEnabled(False)
+        self._sync_children(it)
+        self.tree.setSortingEnabled(True)
+
+    def _tree_node(self) -> diskanalyzer.Node | None:
+        it = self.tree.currentItem()
+        return it.data(0, Qt.ItemDataRole.UserRole) if it is not None else None
+
+    def _tree_selected(self) -> None:
+        self._files_cache = ("", [])
+        self._fill_contents()
+
+    def _fill_contents(self) -> None:
+        node = self._tree_node()
+        if node is None:
+            return
+        if self._files_cache[0] != node.path:
+            self._files_cache = (node.path, diskanalyzer.list_files(node.path))
+        style = QApplication.style()
+        dir_icon = style.standardIcon(QStyle.StandardPixmap.SP_DirIcon)
+        file_icon = style.standardIcon(QStyle.StandardPixmap.SP_FileIcon)
+        keep = self._contents_path()
+        total = node.size or 1
+        rows = [(c.name, c.path, c.size, c.files, c.dirs, True, 0.0) for c in list(node.children)]
+        rows += [(n, p, sz, 1, 0, False, mt) for n, p, sz, mt in self._files_cache[1]]
+        rows.sort(key=lambda r: -r[2])
+        self.contents.setUpdatesEnabled(False)
+        self.contents.setRowCount(0)
+        sel = -1
+        for n, (name, path, size, files, dirs, is_dir, mtime) in enumerate(rows[:5000]):
+            self.contents.insertRow(n)
+            c0 = cell(name, data=(path, is_dir), tooltip=path)
+            c0.setIcon(dir_icon if is_dir else file_icon)
+            self.contents.setItem(n, 0, c0)
+            self.contents.setItem(n, 1, cell(human_size(size), True))
+            self.contents.setItem(n, 2, cell(f"{size * 100 / total:.1f} %", True))
+            self.contents.setItem(n, 3, cell(str(files), True))
+            self.contents.setItem(n, 4, cell(str(dirs) if is_dir else "", True))
+            self.contents.setItem(n, 5, cell(time.strftime("%d.%m.%Y %H:%M", time.localtime(mtime)) if mtime else "", True))
+            if path == keep:
+                sel = n
+        if sel >= 0:
+            self.contents.selectRow(sel)
+        self.contents.setUpdatesEnabled(True)
+
+    def _contents_path(self) -> str:
+        rows = self.contents.selectionModel().selectedRows()
+        return self.contents.item(rows[0].row(), 0).data(Qt.ItemDataRole.UserRole)[0] if rows else ""
+
+    # ------------------------------------------------------------ действия
+    def _selected_paths(self) -> List[str]:
+        """Что выбрано: в режиме структуры — строки правой таблицы (или папка в дереве), по типам — файлы списка."""
+        if self.stack.currentIndex() == 0:
+            return [self.files.item(r.row(), 0).data(Qt.ItemDataRole.UserRole) for r in self.files.selectionModel().selectedRows()]
+        rows = self.contents.selectionModel().selectedRows()
         if rows:
-            common.reveal(self.files.item(rows[0].row(), 0).data(Qt.ItemDataRole.UserRole))
+            return [self.contents.item(r.row(), 0).data(Qt.ItemDataRole.UserRole)[0] for r in rows]
+        node = self._tree_node()
+        return [node.path] if node is not None and node.parent is not None else []
+
+    def _reveal(self) -> None:
+        paths = self._selected_paths()
+        if paths:
+            common.reveal(paths[0])
+        elif self.report:
+            common.open_path(self.report.root)
+
+    def _rescan_selected(self) -> None:
+        node = self._tree_node() if self.stack.currentIndex() == 1 else None
+        if node is None or not self.report or self.runner.busy or self._busy_delete:
+            return
+        rep = self.report
+        self._busy_delete = True
+        self._buttons()
+        self.progress.update_progress(L("Recounting {p}…", "Пересчёт {p}…").format(p=node.path))
+
+        def work(w):
+            return diskanalyzer.rescan(rep, node, w.cancel_event)
+
+        self.del_runner.start(work, self._after_change, self._change_failed)
+
+    def _delete(self, permanent: bool) -> None:
+        rep = self.report
+        paths = self._selected_paths()
+        if not rep or not paths or self.runner.busy or self._busy_delete:
+            return
+        blocked = [p for p in paths if diskanalyzer.is_protected_path(p, self.win.make_ctx().env)]
+        if blocked:
+            info(self, L("Delete", "Удаление"),
+                 L("Drive roots, your home folder and system folders cannot be deleted here:\n{p}",
+                   "Корни дисков, домашнюю папку и системные папки здесь удалять нельзя:\n{p}").format(p="\n".join(blocked[:5])), True)
+            return
+        shown = "\n".join(paths[:6]) + ("\n…" if len(paths) > 6 else "")
+        txt = (L("Permanently delete {n} item(s)?\n\n{l}\n\nThis cannot be undone.", "Удалить навсегда объектов: {n}?\n\n{l}\n\nОтменить нельзя.")
+               if permanent else L("Move {n} item(s) to trash?\n\n{l}", "Переместить в корзину объектов: {n}?\n\n{l}")).format(n=len(paths), l=shown)
+        if not ask(self, L("Delete", "Удаление"), txt, L("Delete", "Удалить")):
+            return
+        passes = self.win.cfg.secure_passes
+        self._busy_delete = True
+        self._buttons()
+        self.progress.update_progress(L("Deleting…", "Удаление…"))
+
+        def work(w):
+            errs = []
+            for p in paths:
+                try:
+                    if permanent:
+                        errs += wiper.shred_paths([p], passes)
+                    else:
+                        trash.move_to_trash(p)
+                except OSError as exc:
+                    errs.append(f"{p}: {exc.strerror or exc}")
+                # дерево: папку считаем заново (или убираем, если её уже нет); для файла пересчитываем его папку
+                node = diskanalyzer.find_node(rep, p)
+                if node is not None:
+                    diskanalyzer.rescan(rep, node)
+                parent = diskanalyzer.find_node(rep, os.path.dirname(p))
+                if parent is not None:
+                    diskanalyzer.refresh_own_files(rep, parent)
+            return errs
+
+        self.del_runner.start(work, self._after_delete, self._change_failed)
+
+    def _after_delete(self, errs) -> None:
+        self._after_change(None)
+        if errs:
+            info(self, L("Errors", "Ошибки"), "\n".join(errs[:15]), True)
+        else:
+            self.win.set_status(L("Deleted; folder sizes recounted", "Удалено, размеры папок пересчитаны"))
+
+    def _after_change(self, _res) -> None:
+        self._busy_delete = False
+        self.progress.finish("")
+        self._files_cache = ("", [])
+        self._buttons()
+        self._refresh_all(force=True)
+
+    def _change_failed(self, msg: str) -> None:
+        self._busy_delete = False
+        self._buttons()
+        self.fail(msg)
 
 
 # ======================================================================

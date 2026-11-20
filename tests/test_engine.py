@@ -405,6 +405,28 @@ def test_disk_analyzer(tmp_path):
     assert rep.largest()[0][0] == 5000 and rep.total_size == 6010
 
 
+def test_disk_tree_sizes_and_recount_after_delete(tmp_path):
+    import shutil
+    write(tmp_path / "a/x.jpg", b"1" * 1000); write(tmp_path / "a/b/y.mp4", b"1" * 5000)
+    write(tmp_path / "a/b/c/z.txt", b"1" * 70); write(tmp_path / "q.bin", b"1" * 10)
+    rep = DA.analyze(str(tmp_path))
+    a = DA.find_node(rep, str(tmp_path / "a"))
+    assert (rep.tree.size, rep.tree.files, rep.tree.dirs) == (6080, 4, 3) and (a.size, a.files, a.dirs) == (6070, 3, 2)
+    shutil.rmtree(tmp_path / "a/b")
+    DA.rescan(rep, DA.find_node(rep, str(tmp_path / "a/b")))        # папки нет -> убрана из дерева
+    DA.refresh_own_files(rep, a)
+    assert (rep.tree.size, rep.tree.files, rep.tree.dirs) == (1010, 2, 1) and a.dirs == 0
+    assert rep.total_size == 1010 and rep.size["video"] == 0 and [s for s, _ in rep.largest()] == [1000, 10]
+    os.remove(tmp_path / "a/x.jpg")
+    DA.refresh_own_files(rep, a)
+    assert a.size == 0 and rep.tree.size == 10 and rep.size["pictures"] == 0
+
+
+def test_disk_analyzer_protected_paths():
+    assert DA.is_protected_path("/") and DA.is_protected_path(os.path.expanduser("~"))
+    assert not DA.is_protected_path("/tmp/some/folder")
+
+
 def test_wipe_free_space_leaves_no_files(tmp_path):
     n = WP.wipe_free_space(str(tmp_path), passes=3, reserve=0, limit=3 * 1024 * 1024)
     assert n == 9 * 1024 * 1024 and list(tmp_path.iterdir()) == []

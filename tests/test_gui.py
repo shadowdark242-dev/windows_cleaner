@@ -347,3 +347,51 @@ def test_window_restores_maximized_state(app, home, monkeypatch):
     w = MainWindow(cfg)          # раньше падало: NameError: Qt
     assert w.windowState() & Qt.WindowState.WindowMaximized
     w.close()
+
+
+def test_disk_analyzer_structure_view_live_and_delete(app, home, monkeypatch, tmp_path):
+    from cleanix.ui import page_tools
+    write(tmp_path / "data/a/big.mp4", b"x" * 5000)
+    write(tmp_path / "data/a/small.txt", b"x" * 100)
+    write(tmp_path / "data/b/pic.jpg", b"x" * 700)
+    w = make_window(app, home, monkeypatch)
+    w.show_tab("tools")
+    w.page_by_key["tools"].show_panel("disk")
+    p = w.page_by_key["tools"].panels["disk"]
+    p.path.setEditText(str(tmp_path / "data"))
+    p.start()
+    wait_idle(app, p.runner)
+    assert p.report.tree.size == 5800 and p.report.total_size == 5800
+    p.modes.setCurrentIndex(1)                         # по структуре диска
+    top = p.tree.topLevelItem(0)
+    assert top.text(1).startswith("5") and top.childCount() == 2
+    top.child(0).setExpanded(False)
+    # результат остаётся при переключении вкладок
+    w.show_tab("custom"); w.show_tab("tools")
+    assert p.report.tree.size == 5800 and p.tree.topLevelItemCount() == 1
+    # удаляем папку: итоги пересчитываются, строка исчезает
+    monkeypatch.setattr(page_tools, "ask", lambda *a, **k: True)
+    monkeypatch.setattr(page_tools, "info", lambda *a, **k: None)
+    node = next(c for c in p.report.tree.children if c.name == "a")
+    p.tree.setCurrentItem(p._items[id(node)])
+    p._delete(True)
+    wait_idle(app, p.del_runner)
+    assert not (tmp_path / "data/a").exists()
+    assert p.report.tree.size == 700 and p.report.tree.dirs == 1 and p.report.total_size == 700
+    assert p.tree.topLevelItem(0).childCount() == 1
+
+
+def test_disk_analyzer_refuses_to_delete_protected(app, home, monkeypatch, tmp_path):
+    from cleanix.ui import page_tools
+    write(tmp_path / "x/f.txt")
+    w = make_window(app, home, monkeypatch)
+    p = w.page_by_key["tools"].panels["disk"]
+    p.path.setEditText(str(tmp_path / "x"))
+    p.start()
+    wait_idle(app, p.runner)
+    asked = []
+    monkeypatch.setattr(page_tools, "ask", lambda *a, **k: asked.append(1) or True)
+    monkeypatch.setattr(page_tools, "info", lambda *a, **k: None)
+    monkeypatch.setattr(p, "_selected_paths", lambda: [str(home)])
+    p._delete(True)
+    assert not asked and home.exists()
