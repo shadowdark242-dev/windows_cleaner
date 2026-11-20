@@ -17,6 +17,7 @@ class Plugin:
     version: str
     ident: str
     path: str
+    builtin: bool = False      # встроенное/предустановленное самим браузером или производителем
 
 
 def _chromium_name(ext_dir: Path, manifest: dict) -> str:
@@ -37,6 +38,28 @@ def _chromium_name(ext_dir: Path, manifest: dict) -> str:
     return name
 
 
+# Chromium Manifest::Location: 5 COMPONENT, 10 EXTERNAL_COMPONENT — расширения, встроенные в сам браузер
+_BUILTIN_LOCATIONS = {5, 10}
+
+
+def builtin_ids(prof: Path) -> set:
+    """Идентификаторы встроенных расширений профиля Chromium (по Preferences / Secure Preferences)."""
+    out: set = set()
+    for name in ("Preferences", "Secure Preferences"):
+        try:
+            data = json.loads((prof / name).read_text(encoding="utf-8-sig"))
+        except (OSError, ValueError):
+            continue
+        settings = (data.get("extensions") or {}).get("settings") or {}
+        if not isinstance(settings, dict):
+            continue
+        for ext_id, st in settings.items():
+            if isinstance(st, dict) and (st.get("location") in _BUILTIN_LOCATIONS
+                                         or st.get("was_installed_by_default") or st.get("was_installed_by_oem")):
+                out.add(ext_id)
+    return out
+
+
 def list_plugins(ctx: Ctx) -> List[Plugin]:
     out: List[Plugin] = []
     for spec in browsers.CHROMIUM:
@@ -45,6 +68,7 @@ def list_plugins(ctx: Ctx) -> List[Plugin]:
             ext_root = prof / "Extensions"
             if not ext_root.is_dir():
                 continue
+            builtin = builtin_ids(prof)
             for ext in sorted(ext_root.iterdir()):
                 versions = sorted(p for p in ext.iterdir() if p.is_dir()) if ext.is_dir() else []
                 if not versions:
@@ -54,7 +78,8 @@ def list_plugins(ctx: Ctx) -> List[Plugin]:
                     m = json.loads((vdir / "manifest.json").read_text(encoding="utf-8-sig"))
                 except (OSError, ValueError):
                     continue
-                out.append(Plugin(spec[1], _chromium_name(vdir, m) or ext.name, str(m.get("version", "")), ext.name, str(vdir)))
+                out.append(Plugin(spec[1], _chromium_name(vdir, m) or ext.name, str(m.get("version", "")), ext.name, str(vdir),
+                                  ext.name in builtin))
     for prof, _c in browsers.firefox_profiles(ctx):
         f = prof / "extensions.json"
         try:
@@ -62,7 +87,8 @@ def list_plugins(ctx: Ctx) -> List[Plugin]:
         except (OSError, ValueError):
             continue
         for a in data.get("addons", []):
-            if a.get("location") == "app-system-defaults" or a.get("type") not in ("extension", "theme"):
+            if a.get("location") in ("app-system-defaults", "app-builtin", "app-builtin-addons", "app-system-addons") \
+                    or a.get("type") not in ("extension", "theme"):
                 continue
             name = (a.get("defaultLocale") or {}).get("name") or a.get("id", "")
             out.append(Plugin("Mozilla Firefox", name, str(a.get("version", "")), a.get("id", ""), str(a.get("path") or prof)))
