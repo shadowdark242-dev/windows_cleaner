@@ -168,7 +168,7 @@ QTreeWidget::item, QListWidget::item {{ padding: 3px 2px; }}
 QTreeWidget::item:selected, QTableWidget::item:selected, QListWidget::item:selected {{ background: {c['selected']}; color: {c['text']}; }}
 QTreeWidget::item:hover, QListWidget::item:hover {{ background: {c['hover']}; }}
 QHeaderView::section {{ background: {c['header']}; border: none; border-right: 1px solid {c['border']};
-    border-bottom: 1px solid {c['border']}; padding: 6px 26px 6px 8px; font-weight: 600; }}
+    border-bottom: 1px solid {c['border']}; padding: 6px 22px 6px 8px; font-weight: 600; }}
 QHeaderView::up-arrow {{ {up} width: 10px; height: 10px; subcontrol-origin: padding; subcontrol-position: center right; right: 5px; }}
 QHeaderView::down-arrow {{ {down} width: 10px; height: 10px; subcontrol-origin: padding; subcontrol-position: center right; right: 5px; }}
 QCheckBox, QRadioButton {{ spacing: 8px; }}

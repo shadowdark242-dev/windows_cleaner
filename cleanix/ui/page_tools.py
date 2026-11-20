@@ -326,14 +326,13 @@ class DiskPanel(Panel):
         self.b_go = button(L("Analyze", "Анализ"), self.start, "primary")
         self.b_stop = button(L("Stop", "Стоп"), self.runner.stop)
         self.b_stop.setEnabled(False)
-        self.lay.addLayout(self.toolbar(self.path, button(L("Browse…", "Обзор…"), self._browse), self.b_go, self.b_stop, None))
-
         self.modes = QTabBar()
         self.modes.setObjectName("subtabs")
         self.modes.addTab(L("By file type", "По типам файлов"))
         self.modes.addTab(L("By disk structure", "По структуре диска"))
         self.modes.currentChanged.connect(self._mode_changed)
-        self.lay.addWidget(self.modes)
+        self.lay.addWidget(self.modes)             # тип представления — сразу под меню инструментов
+        self.lay.addLayout(self.toolbar(self.path, button(L("Browse…", "Обзор…"), self._browse), self.b_go, self.b_stop, None))
         self.stack = QStackedWidget()
         self.lay.addWidget(self.stack, 1)
 
@@ -361,17 +360,17 @@ class DiskPanel(Panel):
         for c in range(1, 5):
             head.setSectionResizeMode(c, QHeaderView.ResizeMode.ResizeToContents)
         self.tree.setTextElideMode(Qt.TextElideMode.ElideMiddle)
+        self.tree.setMinimumWidth(420)             # иначе числовые колонки съедают место у имени папки
         self.tree.setSortingEnabled(True)
         self.tree.sortByColumn(1, Qt.SortOrder.DescendingOrder)
         self.tree.itemExpanded.connect(self._expanded)
         self.tree.itemSelectionChanged.connect(self._tree_selected)
-        self.contents = make_table([L("Name", "Имя"), L("Size", "Размер"), "%", L("Files", "Файлов"), L("Folders", "Папок"),
-                                    L("Modified", "Изменён")], 0)
+        self.contents = make_table([L("Name", "Имя"), L("Size", "Размер"), "%", L("Files", "Файлов"), L("Folders", "Папок")], 0)
         self.contents.setIconSize(QSize(16, 16))
         self.contents.setSortingEnabled(False)
         struct.addWidget(self.tree)
         struct.addWidget(self.contents)
-        struct.setSizes([430, 570])
+        struct.setSizes([540, 460])
         common.remember_splitter(struct, win.cfg, "disk.struct")
         self.stack.addWidget(struct)
 
@@ -626,7 +625,6 @@ class DiskPanel(Panel):
             self.contents.setItem(n, 2, cell(f"{size * 100 / total:.1f} %", True))
             self.contents.setItem(n, 3, cell(str(files), True))
             self.contents.setItem(n, 4, cell(str(dirs) if is_dir else "", True))
-            self.contents.setItem(n, 5, cell(time.strftime("%d.%m.%Y %H:%M", time.localtime(mtime)) if mtime else "", True))
             if path == keep:
                 sel = n
         if sel >= 0:
