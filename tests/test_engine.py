@@ -1,4 +1,5 @@
 import os
+import pytest
 import sqlite3
 import struct
 
@@ -485,6 +486,21 @@ def test_windows_uninstall_list(tmp_path):
     ctx, _ = win_ctx(tmp_path, reg)
     ps = UN.list_windows(ctx)
     assert [p.name for p in ps] == ["Real App"] and ps[0].size == 2048 * 1024 and ps[0].date == "31.01.2024"
+
+
+def test_remove_registry_entry_backs_up_and_deletes(tmp_path):
+    reg = FakeRegistry()
+    u = r"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall"
+    reg.add(u + r"\A", {"DisplayName": "Broken App", "UninstallString": "gone.exe"})
+    reg.add(u + r"\B", {"DisplayName": "Other", "UninstallString": "o.exe"})
+    ctx, _ = win_ctx(tmp_path, reg)
+    p = [x for x in UN.list_windows(ctx) if x.name == "Broken App"][0]
+    bak = tmp_path / "b.reg"
+    UN.remove_registry_entry(p, reg, str(bak))
+    assert "Broken App" in bak.read_text(encoding="utf-16")
+    assert [x.name for x in UN.list_windows(ctx)] == ["Other"]
+    with pytest.raises(ValueError):
+        UN.remove_registry_entry(UN.Program("x", kind="dpkg"), reg)
 
 
 def test_scheduler_lines():

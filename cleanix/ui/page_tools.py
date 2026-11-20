@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import time
 from typing import Dict, List
 
 from PySide6.QtCore import QSize, Qt, QTimer
@@ -10,7 +11,9 @@ from PySide6.QtWidgets import (QCheckBox, QComboBox, QFileDialog, QHBoxLayout, Q
                                QSplitter, QStackedWidget, QTabBar, QTreeWidget, QTreeWidgetItem, QVBoxLayout,
                                QWidget)
 
+from ..core.config import backup_dir
 from ..core.i18n import L, T, human_size
+from ..core.platform import NAME
 from ..tools import diskanalyzer, duplicates, plugins, restore, startup, trash, uninstall, wiper
 from . import common
 from .appicons import icon_for
@@ -74,7 +77,13 @@ class UninstallPanel(Panel):
                                  L("Size", "Размер"), L("Installed", "Установлено")], 0)
         self.table.setIconSize(QSize(18, 18))
         self.btn_un = button(L("Uninstall", "Удалить"), self.do_uninstall, "danger")
-        self.lay.addLayout(self.toolbar(self.search, None, button(L("Refresh", "Обновить"), self.refresh), self.btn_un))
+        self.btn_rm = button(L("Remove entry", "Удалить запись"), self.do_remove_entry)
+        self.btn_rm.setToolTip(L("Removes only the program's entry from the installed list (registry). Files stay on disk. "
+                                 "Use it when the uninstaller is broken or missing.",
+                                 "Удаляет только запись о программе из списка установленных (реестр). Файлы остаются на диске. "
+                                 "Нужно, когда деинсталлятор сломан или отсутствует."))
+        self.btn_rm.setVisible(NAME == "windows")
+        self.lay.addLayout(self.toolbar(self.search, None, button(L("Refresh", "Обновить"), self.refresh), self.btn_rm, self.btn_un))
         self.lay.addWidget(self.table, 1)
         self.count = label("", "muted")
         self.lay.addWidget(self.count)
@@ -134,6 +143,34 @@ class UninstallPanel(Panel):
                 self.win.set_status(L("Uninstaller started: {n}", "Запущен деинсталлятор: {n}").format(n=p.name))
             except OSError as exc:
                 self.fail(str(exc))
+
+
+    def do_remove_entry(self) -> None:
+        rows = self.table.selectionModel().selectedRows()
+        if not rows:
+            return
+        p = self.programs[self.table.item(rows[0].row(), 0).data(Qt.ItemDataRole.UserRole)]
+        if p.kind != "reg":
+            return
+        reg = self.win.make_ctx().registry
+        stamp = time.strftime("%Y%m%d-%H%M%S")
+        backup = str(backup_dir() / f"uninstall-entry-{stamp}.reg")
+        msg = L("Remove the registry entry of “{n}”?\n\nThe program's files are NOT deleted; it will only disappear from "
+                "this list and from Windows “Apps”. A backup will be saved to:\n{p}",
+                "Удалить запись о программе «{n}» из реестра?\n\nФайлы программы НЕ удаляются: она лишь исчезнет из этого "
+                "списка и из «Приложений» Windows. Резервная копия будет сохранена в:\n{p}").format(n=p.name, p=backup)
+        if not ask(self, L("Remove entry", "Удаление записи"), msg, L("Remove", "Удалить")):
+            return
+        try:
+            uninstall.remove_registry_entry(p, reg, backup)
+        except PermissionError:
+            self.fail(L("Access denied: this entry is protected by Windows.", "Доступ запрещён: запись защищена Windows."))
+            return
+        except OSError as exc:
+            self.fail(str(exc))
+            return
+        self.win.set_status(L("Entry removed: {n}", "Запись удалена: {n}").format(n=p.name))
+        self.refresh()
 
 
 # ======================================================================

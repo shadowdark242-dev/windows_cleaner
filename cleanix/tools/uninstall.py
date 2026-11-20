@@ -205,3 +205,16 @@ def run_uninstall(p: Program) -> None:
         subprocess.Popen(cmd, shell=True)       # Windows: запускаем штатный деинсталлятор
     else:
         subprocess.Popen(cmd)
+
+
+def remove_registry_entry(p: Program, reg, backup_path: str | None = None) -> None:
+    """Удаляет запись программы из списка установленных (только ключ Uninstall, файлы не трогает).
+
+    Перед удалением пишет .reg-бэкап ключа; если бэкап не удался — ничего не меняет.
+    """
+    if p.kind != "reg" or reg is None:
+        raise ValueError("not a registry entry")
+    if backup_path:
+        from ..core.registry import write_reg_file
+        write_reg_file(reg, [p.ident], backup_path)
+    reg.delete_key(p.ident)
