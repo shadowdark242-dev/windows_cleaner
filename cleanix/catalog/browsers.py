@@ -22,6 +22,10 @@ CHROMIUM = [
      (".config/vivaldi", ".cache/vivaldi"), False),
     ("opera", "Opera", ("APPDATA", "Opera Software/Opera Stable"),
      (".config/opera", ".cache/opera"), True),
+    ("operagx", "Opera GX", ("APPDATA", "Opera Software/Opera GX Stable"),
+     (".config/opera-gx", ".cache/opera-gx"), True),
+    ("yandex", "Yandex Browser", ("LOCALAPPDATA", "Yandex/YandexBrowser/User Data"),
+     (".config/yandex-browser", ".cache/yandex-browser"), False),
 ]
 
 CACHE_DIRS = ["Cache", "Code Cache", "GPUCache", "Media Cache", "Service Worker/CacheStorage",
@@ -51,7 +55,14 @@ def chromium_roots(ctx: Ctx, spec) -> tuple[List[Path], List[Path], bool]:
     if base is None or not base.is_dir():
         return [], [], flat
     if flat:
-        return [base], [cache_base], flat
+        # Opera хранит данные либо прямо в папке, либо (новые версии) в подпапках Default / Profile N;
+        # кэш на Windows лежит в LOCALAPPDATA, а не в APPDATA
+        if ctx.windows:
+            local = ctx.env_path("LOCALAPPDATA", *win[1].split("/"))
+            if local is not None and local.is_dir():
+                cache_base = local
+        subs = [p for p in ctx.profiles(base) if p.name == "Default" or p.name.startswith("Profile ")]
+        return [base] + subs, [cache_base] + [cache_base / p.name for p in subs], flat
     profs = [p for p in ctx.profiles(base) if p.name == "Default" or p.name.startswith("Profile ") or p.name == "Guest Profile"]
     cprofs = [cache_base / p.name for p in profs]
     return profs, cprofs, flat

@@ -503,6 +503,17 @@ def test_remove_registry_entry_backs_up_and_deletes(tmp_path):
         UN.remove_registry_entry(UN.Program("x", kind="dpkg"), reg)
 
 
+def test_extensions_found_for_opera_flat_and_subprofile(tmp_path):
+    from cleanix.tools import plugins
+    ctx, _ = win_ctx(tmp_path)
+    roam = tmp_path / "win/AppData/Roaming/Opera Software"
+    for base, name in ((roam / "Opera Stable", "Old Layout"), (roam / "Opera GX Stable/Default", "Gx Ext"),
+                       (roam / "Opera Stable/Default", "New Layout")):
+        write(base / f"Extensions/abc{name[0]}/1.0/manifest.json", '{"name": "%s", "version": "1.0"}' % name)
+    found = {(p.browser, p.name) for p in plugins.list_plugins(ctx)}
+    assert {("Opera", "Old Layout"), ("Opera", "New Layout"), ("Opera GX", "Gx Ext")} <= found
+
+
 def test_scheduler_lines():
     line = SCH.cron_line({"freq": "weekly", "time": "07:30"})
     assert line.startswith("30 7 * * 1 ") and SCH.CRON_MARK in line
