@@ -9,7 +9,7 @@ from . import APP_NAME, __version__
 from .catalog import for_platform, is_checked, selected_items
 from .core import engine
 from .core.config import Config
-from .core.i18n import human_size, set_language, tr
+from .core.i18n import L, human_size, set_language, tr
 from .core.platform import NAME
 
 
@@ -52,5 +52,6 @@ def main_cli(args: argparse.Namespace) -> int:
         for r in results:
             for err in r.errors[:3]:
                 print(f"! {r.item.name}: {err}", file=sys.stderr)
-    print(f"{tr('removed')}: {s['removed_count']} / {human_size(s['removed_size'])}; {tr('errors')}: {s['errors']}")
+    label = L("Would remove (dry run)", "Было бы удалено (пробный запуск)") if args.dry_run else tr("removed")
+    print(f"{label}: {s['removed_count']} / {human_size(s['removed_size'])}; {tr('errors')}: {s['errors']}")
     return 0

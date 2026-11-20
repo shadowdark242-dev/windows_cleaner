@@ -614,6 +614,8 @@ class DiskPanel(Panel):
         rows = [(c.name, c.path, c.size, c.files, c.dirs, True, 0.0) for c in list(node.children)]
         rows += [(n, p, sz, 1, 0, False, mt) for n, p, sz, mt in self._files_cache[1]]
         rows.sort(key=lambda r: -r[2])
+        bar = self.contents.verticalScrollBar()
+        scroll = bar.value()
         self.contents.setUpdatesEnabled(False)
         self.contents.setRowCount(0)
         sel = -1
@@ -632,6 +634,7 @@ class DiskPanel(Panel):
         if sel >= 0:
             self.contents.selectRow(sel)
         self.contents.setUpdatesEnabled(True)
+        bar.setValue(scroll)           # таблица перестраивается раз в секунду — не прыгаем наверх
 
     def _contents_path(self) -> str:
         rows = self.contents.selectionModel().selectedRows()

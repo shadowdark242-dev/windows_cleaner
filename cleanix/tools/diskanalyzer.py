@@ -26,21 +26,31 @@ def category_of(name: str) -> str:
     return _EXT.get(os.path.splitext(name)[1].lower(), "other")
 
 
+_NO_KIDS: tuple = ()
+_NO_CATS: Dict[str, List[int]] = {}
+
+
 class Node:
     """Папка в дереве. Файлы по отдельности не хранятся: только суммы (иначе на целом диске не хватит памяти)."""
-    __slots__ = ("name", "path", "parent", "children", "size", "files", "dirs", "own_size", "own_files", "cats")
+    __slots__ = ("name", "_root", "parent", "children", "size", "files", "dirs", "own_size", "own_files", "cats")
 
-    def __init__(self, name: str, path: str, parent: Optional["Node"] = None):
+    def __init__(self, name: str, path: Optional[str] = None, parent: Optional["Node"] = None):
         self.name = name
-        self.path = path
+        self._root = path if parent is None else None      # полный путь хранит только корень, у остальных он собирается
         self.parent = parent
-        self.children: List["Node"] = []
+        self.children = _NO_KIDS                           # общий пустой кортеж: без отдельного списка на каждую папку
         self.size = 0          # байт во всём поддереве
         self.files = 0         # файлов во всём поддереве
         self.dirs = 0          # вложенных папок во всём поддереве
         self.own_size = 0      # байт в файлах прямо в этой папке
         self.own_files = 0
-        self.cats: Dict[str, List[int]] = {}      # категория -> [файлов, байт] (только прямые файлы)
+        self.cats: Dict[str, List[int]] = _NO_CATS     # категория -> [файлов, байт] (только прямые файлы)
+
+    @property
+    def path(self) -> str:
+        if self.parent is None:
+            return self._root or self.name
+        return os.path.join(self.parent.path, self.name)
 
 
 @dataclass
@@ -87,7 +97,7 @@ def _scan_dir(rep: Report, node: Node, dev: int, one_device: bool, shallow: bool
     """Читает одну папку: прямые файлы -> суммы узла и отчёта; подпапки -> новые дочерние узлы (их вернёт)."""
     own_size = own_files = 0
     cats: Dict[str, List[int]] = {}
-    subdirs: List[Tuple[str, str]] = []
+    subdirs: List[str] = []
     try:
         it = os.scandir(node.path)
     except OSError:
@@ -99,7 +109,7 @@ def _scan_dir(rep: Report, node: Node, dev: int, one_device: bool, shallow: bool
                     continue
                 if e.is_dir(follow_symlinks=False):
                     if not shallow and not (one_device and e.stat(follow_symlinks=False).st_dev != dev):
-                        subdirs.append((e.name, e.path))
+                        subdirs.append(e.name)
                     continue
                 st = e.stat(follow_symlinks=False)
             except OSError:
@@ -118,10 +128,10 @@ def _scan_dir(rep: Report, node: Node, dev: int, one_device: bool, shallow: bool
     for cat, (cnt, sz) in cats.items():
         rep.count[cat] += cnt
         rep.size[cat] += sz
-    node.own_size, node.own_files, node.cats = own_size, own_files, cats
-    kids = [Node(n, p, node) for n, p in subdirs]
-    if not shallow:
-        node.children.extend(kids)
+    node.own_size, node.own_files, node.cats = own_size, own_files, (cats or _NO_CATS)
+    kids = [Node(n, None, node) for n in subdirs]
+    if kids and not shallow:
+        node.children = kids
     _add_up(node, own_size, own_files, len(kids))
     rep.files_seen += own_files
     if progress and rep.files_seen % 2000 < own_files:
@@ -222,7 +232,7 @@ def remove_node(rep: Report, node: Node) -> Optional[Node]:
     _drop_totals(rep, _subtree_cats(node))
     _prune_top(rep, node.path, True)
     _add_up(parent, -node.size, -node.files, -(node.dirs + 1))
-    parent.children = [c for c in parent.children if c is not node]
+    parent.children = [c for c in parent.children if c is not node] or _NO_KIDS
     return parent
 
 
@@ -234,9 +244,9 @@ def rescan(rep: Report, node: Node, cancel: Optional[threading.Event] = None, on
     _drop_totals(rep, _subtree_cats(node))
     _prune_top(rep, node.path, True)
     _add_up(node.parent, -node.size, -node.files, -node.dirs)
-    node.children = []
+    node.children = _NO_KIDS
     node.size = node.files = node.dirs = node.own_size = node.own_files = 0
-    node.cats = {}
+    node.cats = _NO_CATS
     dev, one_device = _device(node.path, one_device)
     _scan_tree(rep, node, dev, one_device, cancel, progress)
     return node
@@ -248,7 +258,7 @@ def refresh_own_files(rep: Report, node: Node) -> None:
     _prune_top(rep, node.path, False)
     _add_up(node, -node.own_size, -node.own_files, 0)
     node.own_size = node.own_files = 0
-    node.cats = {}
+    node.cats = _NO_CATS
     _scan_dir(rep, node, 0, False, shallow=True)
 
 
@@ -272,16 +282,24 @@ def list_files(path: str, limit: int = 3000) -> List[Tuple[str, str, int, float]
 
 
 def is_protected_path(path: str, env: Optional[Dict[str, str]] = None) -> bool:
-    """Корни дисков, домашняя папка и системные каталоги удалять из анализатора нельзя."""
+    """Нельзя удалять из анализатора: корни дисков, домашняя папка, системные каталоги и всё внутри них."""
     env = env if env is not None else dict(os.environ)
-    p = os.path.normcase(os.path.abspath(path)).rstrip("\\/") or os.sep
+
+    def norm(x: str) -> str:
+        return os.path.normcase(os.path.abspath(x)).rstrip("\\/")
+
+    p = norm(path) or os.sep
     if os.path.splitdrive(p)[1] in ("", os.sep, "\\"):
         return True
-    bad = {os.path.normcase(os.path.abspath(os.path.expanduser("~"))).rstrip("\\/")}
-    for k in ("WINDIR", "SystemRoot", "ProgramFiles", "ProgramFiles(x86)", "ProgramData", "USERPROFILE", "SystemDrive"):
+    exact = {norm(os.path.expanduser("~"))}
+    trees = set()
+    for k in ("WINDIR", "SystemRoot"):
         if env.get(k):
-            bad.add(os.path.normcase(os.path.abspath(env[k])).rstrip("\\/"))
+            trees.add(norm(env[k]))
+    for k in ("ProgramFiles", "ProgramFiles(x86)", "ProgramData", "USERPROFILE", "SystemDrive"):
+        if env.get(k):
+            exact.add(norm(env[k]))
     if os.name != "nt":
-        bad |= {"/bin", "/boot", "/dev", "/etc", "/home", "/lib", "/lib64", "/opt", "/proc", "/root", "/run", "/sbin",
-                "/srv", "/sys", "/usr", "/var", "/usr/bin", "/usr/lib", "/var/lib"}
-    return p in bad
+        trees |= {"/bin", "/boot", "/dev", "/etc", "/lib", "/lib32", "/lib64", "/proc", "/sbin", "/sys", "/usr"}
+        exact |= {"/home", "/opt", "/root", "/run", "/srv", "/var", "/var/lib"}
+    return p in exact or any(p == t or p.startswith(t + os.sep) for t in trees)

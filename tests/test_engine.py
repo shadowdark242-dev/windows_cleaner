@@ -425,6 +425,7 @@ def test_disk_tree_sizes_and_recount_after_delete(tmp_path):
 def test_disk_analyzer_protected_paths():
     assert DA.is_protected_path("/") and DA.is_protected_path(os.path.expanduser("~"))
     assert not DA.is_protected_path("/tmp/some/folder")
+    assert DA.is_protected_path("/usr/lib/python3") and DA.is_protected_path("/etc/ssl")     # всё внутри системных деревьев
 
 
 def test_wipe_free_space_leaves_no_files(tmp_path):
