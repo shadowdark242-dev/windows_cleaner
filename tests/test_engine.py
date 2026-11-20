@@ -537,19 +537,6 @@ def test_extensions_found_for_opera_flat_and_subprofile(tmp_path):
     assert {("Opera", "Old Layout"), ("Opera", "New Layout"), ("Opera GX", "Gx Ext")} <= found
 
 
-def test_builtin_browser_extensions_are_flagged(tmp_path):
-    from cleanix.tools import plugins
-    ctx, _ = win_ctx(tmp_path)
-    prof = tmp_path / "win/AppData/Roaming/Opera Software/Opera Stable"
-    write(prof / "Extensions/userext/1.0/manifest.json", '{"name": "User Ext", "version": "1"}')
-    write(prof / "Extensions/compext/1.0/manifest.json", '{"name": "Wallet", "version": "1"}')
-    write(prof / "Extensions/oemext/1.0/manifest.json", '{"name": "Oem", "version": "1"}')
-    write(prof / "Secure Preferences", '{"extensions": {"settings": {"userext": {"location": 1}, "compext": {"location": 5},'
-                                       ' "oemext": {"location": 1, "was_installed_by_oem": true}}}}')
-    got = {p.name: p.builtin for p in plugins.list_plugins(ctx)}
-    assert got == {"User Ext": False, "Wallet": True, "Oem": True}
-
-
 def test_scheduler_lines():
     line = SCH.cron_line({"freq": "weekly", "time": "07:30"})
     assert line.startswith("30 7 * * 1 ") and SCH.CRON_MARK in line

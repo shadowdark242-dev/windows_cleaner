@@ -270,11 +270,7 @@ class PluginsPanel(Panel):
         super().__init__(win)
         self.items: List[plugins.Plugin] = []
         self.table = make_table([L("Browser", "Браузер"), L("Name", "Название"), L("Version", "Версия"), "ID"], 1)
-        self.show_builtin = QCheckBox(L("Show built-in extensions", "Показывать встроенные расширения"))
-        self.show_builtin.setToolTip(L("Extensions that ship with the browser itself. Removing them can break the browser.",
-                                       "Расширения, поставляемые самим браузером. Их удаление может сломать браузер."))
-        self.show_builtin.toggled.connect(lambda _: self._loaded(self.items))
-        self.lay.addLayout(self.toolbar(button(L("Refresh", "Обновить"), self.refresh), self.show_builtin, None,
+        self.lay.addLayout(self.toolbar(button(L("Refresh", "Обновить"), self.refresh), None,
                                         button(L("Open folder", "Открыть папку"), self._open)))
         self.lay.addWidget(self.table, 1)
         self.lay.addWidget(self.progress)
@@ -287,17 +283,15 @@ class PluginsPanel(Panel):
     def _loaded(self, items) -> None:
         self.items = items or []
         self.table.setRowCount(0)
-        shown = [(n, p) for n, p in enumerate(self.items) if self.show_builtin.isChecked() or not p.builtin]
-        for r, (n, p) in enumerate(shown):
-            self.table.insertRow(r)
-            for i, v in enumerate((p.browser, p.name + (L("  (built-in)", "  (встроенное)") if p.builtin else ""),
-                                   p.version, p.ident)):
-                self.table.setItem(r, i, cell(v, data=n if i == 0 else None))
+        for n, p in enumerate(self.items):
+            self.table.insertRow(n)
+            for i, v in enumerate((p.browser, p.name, p.version, p.ident)):
+                self.table.setItem(n, i, cell(v, data=n if i == 0 else None))
 
     def _open(self) -> None:
         rows = self.table.selectionModel().selectedRows()
         if rows:
-            common.open_path(self.items[self.table.item(rows[0].row(), 0).data(Qt.ItemDataRole.UserRole)].path)
+            common.open_path(self.items[rows[0].row()].path)
 
 
 # ======================================================================
