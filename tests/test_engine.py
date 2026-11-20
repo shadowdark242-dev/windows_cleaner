@@ -422,10 +422,16 @@ def test_disk_tree_sizes_and_recount_after_delete(tmp_path):
     assert a.size == 0 and rep.tree.size == 10 and rep.size["pictures"] == 0
 
 
-def test_disk_analyzer_protected_paths():
-    assert DA.is_protected_path("/") and DA.is_protected_path(os.path.expanduser("~"))
-    assert not DA.is_protected_path("/tmp/some/folder")
-    assert DA.is_protected_path("/usr/lib/python3") and DA.is_protected_path("/etc/ssl")     # всё внутри системных деревьев
+def test_disk_analyzer_protected_paths(tmp_path):
+    assert DA.is_protected_path(os.path.abspath(os.sep)) and DA.is_protected_path(os.path.expanduser("~"))
+    assert not DA.is_protected_path(str(tmp_path / "some" / "folder"))
+    env = {"WINDIR": str(tmp_path / "Windows")}
+    assert DA.is_protected_path(str(tmp_path / "Windows"), env) and DA.is_protected_path(str(tmp_path / "Windows/System32"), env)
+
+
+@linux_only
+def test_disk_analyzer_protects_linux_system_trees():
+    assert DA.is_protected_path("/usr/lib/python3") and DA.is_protected_path("/etc/ssl") and DA.is_protected_path("/home")
 
 
 def test_wipe_free_space_leaves_no_files(tmp_path):

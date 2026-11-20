@@ -379,6 +379,8 @@ def test_disk_analyzer_structure_view_live_and_delete(app, home, monkeypatch, tm
     assert not (tmp_path / "data/a").exists()
     assert p.report.tree.size == 700 and p.report.tree.dirs == 1 and p.report.total_size == 700
     assert p.tree.topLevelItem(0).childCount() == 1
+    # открытие вкладок запускает фоновые чтения (список программ и т. п.) — дожидаемся их, иначе поток переживёт окно
+    wait_idle(app, *[pn.runner for pn in w.page_by_key["tools"].panels.values()])
 
 
 def test_disk_analyzer_refuses_to_delete_protected(app, home, monkeypatch, tmp_path):
@@ -392,6 +394,7 @@ def test_disk_analyzer_refuses_to_delete_protected(app, home, monkeypatch, tmp_p
     asked = []
     monkeypatch.setattr(page_tools, "ask", lambda *a, **k: asked.append(1) or True)
     monkeypatch.setattr(page_tools, "info", lambda *a, **k: None)
-    monkeypatch.setattr(p, "_selected_paths", lambda: [str(home)])
+    root = os.path.abspath(os.sep)                      # корень диска: на любой ОС защищён
+    monkeypatch.setattr(p, "_selected_paths", lambda: [root])
     p._delete(True)
-    assert not asked and home.exists()
+    assert not asked and os.path.isdir(root)
