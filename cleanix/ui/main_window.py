@@ -88,7 +88,7 @@ class MainWindow(QMainWindow):
             self.ribbons.addWidget(page.build_ribbon())
         self.tabbar.currentChanged.connect(self._tab_changed)
         self.statusBar().showMessage(L("Ready", "Готово"))
-        self.show_tab(start_tab or cfg.last_tab if (start_tab or cfg.last_tab) in self.keys else "easy")
+        self.show_tab(start_tab if start_tab in self.keys else "easy")      # главный экран — «Очистка»
 
     # ------------------------------------------------------------------
     @property
