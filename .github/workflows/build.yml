@@ -34,6 +34,19 @@ jobs:
         run: python -m pytest -q
         env:
           QT_QPA_PLATFORM: offscreen
+      - name: Stamp version from release tag
+        if: startsWith(github.ref, 'refs/tags/v') || inputs.release_tag != ''
+        shell: python
+        env:
+          TAG: ${{ inputs.release_tag || github.ref_name }}
+        run: |
+          import os, re, pathlib
+          ver = os.environ["TAG"].lstrip("v")
+          for f, pat in (("cleanix/__init__.py", r'__version__ = "[^"]*"'), ("pyproject.toml", r'(?m)^version = "[^"]*"')):
+              p = pathlib.Path(f)
+              new = '__version__ = "%s"' % ver if f.endswith(".py") else 'version = "%s"' % ver
+              p.write_text(re.sub(pat, new, p.read_text(encoding="utf-8"), count=1), encoding="utf-8")
+          print("version", ver)
       - name: Build
         run: python build.py
       - uses: actions/upload-artifact@v4
